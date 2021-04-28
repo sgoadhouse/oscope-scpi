@@ -88,6 +88,20 @@ class MXR(Keysight):
 
         return Keysight.OverRange
 
+    def setupAutoscale(self, channel=None):
+        """ Autoscale desired channel, which is a string. channel can also be a list of multiple strings"""
+
+        # MXR allows autoscale to either STACk, SEParate or OVERlay channels
+        #
+        # STACk puts them all in the same grid which reduces ADC
+        # accuracy where SEParate puts them at max ADC accuracy but in
+        # seperate grids.
+        #@@@#self._instWrite("AUToscale:PLACement STACk")
+        self._instWrite("AUToscale:PLACement SEParate")
+
+        super(MXR, self).setupAutoscale(channel)
+
+        
 class MXR058A(MXR):
     """Child class of Keysight for controlling and accessing a Keysight MXR058A Oscilloscope"""
 

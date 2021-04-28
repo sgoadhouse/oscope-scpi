@@ -60,15 +60,15 @@ class Keysight(Oscilloscope):
                                        write_termination='\n'
         )
 
-        # Return list of valid analog channel strings.
-        #@@@#self._chanAnaValidList = [str(x) for x in range(1,self._max_chan+1)]
+        # Return list of valid analog channel strings. These are numbers.
+        self._chanAnaValidList = [str(x) for x in range(1,self._max_chan+1)]
 
         # list of ALL valid channel strings.
         #
-        # NOTE: Currently, only valid values are a numerical string for
+        # NOTE: Currently, only valid values are a CHAN+numerical string for
         # the analog channels, POD1 for digital channels 0-7 or POD2 for
         # digital channels 8-15
-        #@@@#self._chanAllValidList = self._chanAnaValidList + [str(x) for x in ['POD1','POD2']]
+        self._chanAllValidList = [self.channelStr(x) for x in range(1,self._max_chan+1)] + [str(x) for x in ['POD1','POD2']]
         
         
     def annotate(self, text, color=None, background='TRAN'):
@@ -131,6 +131,38 @@ class Keysight(Oscilloscope):
 
         self._instWrite('DISPlay:LABel OFF')
 
+
+    def setupAutoscale(self, channel=None):
+        """ Autoscale desired channel, which is a string. channel can also be a list of multiple strings"""
+
+        # If a channel value is passed in, make it the
+        # current channel and process the list, viewing only these channels
+        if channel is not None:
+            self.channel = channel
+
+            # Make channel a list even if it is a single value
+            if type(self.channel) is not list:
+                chanlist = [self.channel]
+            else:
+                chanlist = self.channel
+
+            # Turn off all channels
+            self.outputOffAll()
+            
+            # Turn on selected channels
+            chanstr = ''
+            for chan in chanlist:                        
+                # Check channel value
+                if (chan not in self._chanAllValidList):
+                    print('INVALID Channel Value for AUTOSCALE: {}  SKIPPING!'.format(chan))
+                else:
+                    self._instWrite("VIEW {}".format(chan))
+                    
+        # Make sure Autoscale is only autoscaling displayed channels
+        #@@@#self._instWrite("AUToscale:CHANnels DISPlayed")
+
+        # Issue autoscale
+        self.autoscale()
 
     def polish(self, value, measure=None):
         """ Using the QuantiPhy package, return a value that is in apparopriate Si units.
@@ -210,7 +242,7 @@ class Keysight(Oscilloscope):
         if (self._chanNumber(src) != self.channel):
             # Different channel value so switch it
             #print("Switching to {}".format(self.channel))
-            self._instWrite("DVM:SOURce {}".format(self._channelStr(self.channel)))
+            self._instWrite("DVM:SOURce {}".format(self.channelStr(self.channel)))
 
         # Select the desired DVM mode
         self._instWrite("DVM:MODE {}".format(mode))
@@ -321,7 +353,7 @@ class Keysight(Oscilloscope):
             raise ValueError('Channel cannot be a list for MEASURE!')
 
         # Check channel value
-        if (self.channel not in MSOX3000.chanAnaValidList):
+        if (self.channel not in self._chanAllValidList):
             raise ValueError('INVALID Channel Value for MEASURE: {}  SKIPPING!'.format(self.channel))
             
         # Next check if desired channel is the source, if not switch it
@@ -332,10 +364,10 @@ class Keysight(Oscilloscope):
         # change.
         src = self._instQuery("MEASure:SOURce?")
         #print("Source: {}".format(src))
-        if (self._chanNumber(src) != self.channel):
+        if (src != self.channel):
             # Different channel so switch it
             #print("Switching to {}".format(self.channel))
-            self._instWrite("MEASure:SOURce {}".format(self._channelStr(self.channel)))
+            self._instWrite("MEASure:SOURce {}".format(self.channel))
 
         if (para):
             # Need to add parameters to the write and query strings

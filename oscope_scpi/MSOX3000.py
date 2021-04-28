@@ -89,7 +89,7 @@ class MSOX3000(Keysight):
             if (chan not in MSOX3000.chanAllValidList):
                 raise ValueError('INVALID Channel Value for AUTOSCALE: {}  SKIPPING!'.format(chan))
             else:
-                chanstr += ',' + self._channelStr(chan)
+                chanstr += ',' + self.channelStr(chan)
 
         # remove the leading ',' when creating the command string with '[1:]'        
         self._instWrite("AUToscale " + chanstr[1:])
@@ -237,7 +237,7 @@ class MSOX3000(Keysight):
                 print( "Waveform points available: {}".format(qresult) )
 
         # Set the waveform source.
-        self._instWrite("WAVeform:SOURce {}".format(self._channelStr(self.channel)))
+        self._instWrite("WAVeform:SOURce {}".format(self.channelStr(self.channel)))
         if DEBUG:
             qresult = self._instQuery("WAVeform:SOURce?")
             print( "Waveform source: {}".format(qresult) )

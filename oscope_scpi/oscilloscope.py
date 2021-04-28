@@ -124,33 +124,9 @@ class Oscilloscope(SCPI):
         return len(oscopeSetup)
 
 
-    def setupAutoscale(self, channel=None):
-        """ Autoscale desired channel, which is a string. channel can also be a list of multiple strings"""
+    def autoscale(self):
+        """ Autoscale Oscilloscope"""
 
-        # If a channel value is passed in, make it the
-        # current channel
-        if channel is not None:
-            self.channel = channel
-
-        # Make channel a list even if it is a single value
-        if type(self.channel) is not list:
-            chanlist = [self.channel]
-        else:
-            chanlist = self.channel
-
-        # chanlist cannot have more than 5 elements
-        if (len(chanlist) > 5):
-            raise ValueError('Too many channels for AUTOSCALE! Max is 5. Aborting')
-            
-        chanstr = ''
-        for chan in chanlist:                        
-            # Check channel value
-            if (chan not in self._chanAllValidList):
-                raise ValueError('INVALID Channel Value for AUTOSCALE: {}  SKIPPING!'.format(chan))
-            else:
-                chanstr += ',' + self._channelStr(chan)
-
-        # remove the leading ',' when creating the command string with '[1:]'        
-        self._instWrite("AUToscale " + chanstr[1:])
+        self._instWrite("AUToscale")
 
     

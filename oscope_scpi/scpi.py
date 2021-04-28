@@ -146,7 +146,7 @@ class SCPI(object):
             self.checkInstErrors(writeStr)
         return result
 
-    def _chStr(self, channel):
+    def chStr(self, channel):
         """return the channel string given the channel number and using the format CHx"""
 
         return 'CH{}'.format(channel)
@@ -156,11 +156,14 @@ class SCPI(object):
 
         return '{}'.format(channel)
 
-    def _channelStr(self, channel):
-        """return the channel string given the channel number and using the format CHANnelx if x is numeric"""
+    def channelStr(self, channel):
+        """return the channel string given the channel number and using the format CHANnelx if x is numeric. If pass in None, return None."""
 
         try:
-            return 'CHANnel{}'.format(int(channel))
+            return 'CHAN{}'.format(int(channel))
+        except TypeError:
+            # If channel is None, will get this exception so simply return it
+            return channel
         except ValueError:
             return self._chanStr(channel)
 
@@ -221,7 +224,7 @@ class SCPI(object):
     # =========================================================
     def checkInstErrors(self, commandStr):
 
-        if (self._version > 3.10):
+        if (self._version > 2.60):
             cmd = "SYSTem:ERRor? STR"
             noerr = ("0,", 0, 2)
         else:
@@ -400,7 +403,7 @@ class SCPI(object):
         if channel is not None:
             self.channel = channel
 
-        str = 'STATus? {}'.format(self._channelStr(self.channel))
+        str = 'STATus? {}'.format(self.channelStr(self.channel))
         ret = self._instQuery(str)
         # @@@print("1:", ret)
         return self._1OR0(ret)
@@ -422,7 +425,7 @@ class SCPI(object):
         if wait is None:
             wait = self._wait
 
-        str = 'VIEW {}'.format(self._channelStr(self.channel))
+        str = 'VIEW {}'.format(self.channelStr(self.channel))
         self._instWrite(str)
         sleep(wait)
 
@@ -442,7 +445,7 @@ class SCPI(object):
         if wait is None:
             wait = self._wait
 
-        str = 'BLANK {}'.format(self._channelStr(self.channel))
+        str = 'BLANK {}'.format(self.channelStr(self.channel))
         self._instWrite(str)
         sleep(wait)
 
@@ -457,7 +460,7 @@ class SCPI(object):
             wait = self._wait
 
         for chan in range(1,self._max_chan+1):
-            str = 'VIEW {}'.format(self._channelStr(chan))
+            str = 'VIEW {}'.format(self.channelStr(chan))
             self._instWrite(str)
 
         sleep(wait)
@@ -473,13 +476,15 @@ class SCPI(object):
             wait = self._wait
 
         #for chan in range(1,self._max_chan+1):
-        #    str = 'BLANK {}'.format(self._channelStr(chan))
+        #    str = 'BLANK {}'.format(self.channelStr(chan))
         #    self._instWrite(str)
 
-        # Blank without a parameter turns off ALL sources
-        str = 'BLANK'
-        self._instWrite(str)
-
+        if (self._version > 2.60):
+            self._instWrite("BLANk ALL")
+        else:
+            # Turn off all channels (v2.60 take no parameter to blank all)
+            self._instWrite("BLANk")
+        
         sleep(wait)             # give some time for PS to respond
 
     def measureVoltage(self, channel=None):
