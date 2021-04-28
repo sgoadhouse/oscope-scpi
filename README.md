@@ -1,4 +1,13 @@
-# msox3000
+# oscope-scpi
+
+My organization was lucky enough to gain new oscilloscopes. They are also HP/Agilent/Keysight oscilloscopes and they also use SCPI commands but they are newer and unfortunately (or maybe I will learn it is fortunate), many of the syntax of the commands changed. Plus these new scopes have expanded abilities and therefore have expanded commands. Therefore, I mirrored my [MSO-X 3000A specific project](https://github.com/sgoadhouse/msox3000) to this one to be more generic and allow me to expand to other types of oscilloscopes.
+
+So consider the old msox3000 project to be dead and future work will go into this project.
+
+The below documentation is currently the old, mxso3000 specific documentation but much of it is still spplicable.
+
+# msox3000 [OLD]
+
 Control of HP/Agilent/Keysight MSO-X/DSO-X 3000A Oscilloscope through python via PyVisa
 
 Using my previous work on dcps as a guide, this is intended to be a
@@ -18,7 +27,7 @@ Like dcps, this will use the brilliant PyVISA python package along
 with the PyVisa-PY access mode which eliminates the need for the (very
 buggy) VISA library to be installed on your computer. 
 
-# Installation
+# Installation [OLD]
 To install the msox3000 package, run the command:
 
 ```
@@ -39,7 +48,7 @@ get installed for you:
 pip install msox3000
 ```
 
-## Requirements
+## Requirements [OLD]
 * [python](http://www.python.org/)
    * pyvisa no longer supports python 2.7+ so neither does this package - use older version of MSOX3000 if need python 2.7+
 * [pyvisa 1.11.3](https://pyvisa.readthedocs.io/en/stable/)
@@ -50,7 +59,7 @@ pip install msox3000
 With the use of pyvisa-py, should not have to install the National
 Instruments VISA driver.
 
-## Features
+## Features [OLD]
 
 This code is not an exhaustive coverage of all available commands and
 queries of the oscilloscopes. The features that do exist are mainly
@@ -85,7 +94,7 @@ add next are: support for Digital/Math/etc. channels, run/stop
 control, trigger setup, horizontal and vertical scale control, zoom
 control
 
-## Channels
+## Channels [OLD]
 Almost all functions require a target channel. Once a channel is passed into a function, the object will remember it and make it the default for all subsequence function calls that do not supply a channel. The channel value is a string or can also be a list of strings, in the case of setupAutoscale(). Currently, the valid channel values are:
 * '1' for analog channel 1
 * '2' for analog channel 2
@@ -94,7 +103,7 @@ Almost all functions require a target channel. Once a channel is passed into a f
 * 'POD1' for the grouping of digital channels 0-7 on a MSO model
 * 'POD2' for the grouping of digital channels 8-15 on a MSO model
 
-## Usage and Examples
+## Usage and Examples [OLD]
 The code is a basic class for controlling and accessing the
 supported oscilloscopes.
 
@@ -178,7 +187,7 @@ instr.setLocal()
 instr.close()
 ```
 
-## Taking it Further
+## Taking it Further [OLD]
 This implements a small subset of available commands.
 
 For information on what is possible for the HP/Agilent/Keysight MSO-X/DSO-X
@@ -192,6 +201,6 @@ IEEE 488 SCPI specification, like the MSO-X 3000A, see the
 and the
 [SCPI Wikipedia](https://en.wikipedia.org/wiki/Standard_Commands_for_Programmable_Instruments) entry.
 
-## Contact
+## Contact [OLD]
 Please send bug reports or feedback to Stephen Goadhouse
 
