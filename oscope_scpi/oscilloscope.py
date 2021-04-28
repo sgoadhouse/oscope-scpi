@@ -23,7 +23,12 @@
 # SOFTWARE.
 
 #-------------------------------------------------------------------------------
-#  Control of HP/Agilent/Keysight MSO-X/DSO-X 3000A Oscilloscope with PyVISA
+#  Control of Oscilloscopes with PyVISA and SCPI command set. This started as
+#  specific code for the HP/Agilent/Keysight MSO-X/DSO-X 3000A Oscilloscope and
+#  has been made more generic to be used with Agilent UXR and MXR Oscilloscopes.
+#  The hope is that these commands in this package are generic enough to be
+#  used with other brands but may need to make this an Agilent specific
+#  package in the future if find that not to be true.
 #-------------------------------------------------------------------------------
 
 # For future Python3 compatibility:
@@ -34,7 +39,7 @@ from __future__ import print_function
 try:
     from . import SCPI
 except Exception:
-    from SCPI import SCPI
+    from scpi import SCPI
 
 from time import sleep
 from datetime import datetime
@@ -42,33 +47,34 @@ from quantiphy import Quantity
 from sys import version_info
 import pyvisa as visa
 
-class MSOX3000(SCPI):
-    """Basic class for controlling and accessing a HP/Agilent/Keysight MSO-X/DSO-X 3000A Oscilloscope"""
+class Oscilloscope(SCPI):
+    """Base class for controlling and accessing an Oscilloscope with PyVISA and SCPI commands"""
 
-    maxChannel = 4
-
-    # Return list of ALL valid channel strings.
-    #
-    # NOTE: Currently, only valid values are a numerical string for
-    # the analog channels, POD1 for digital channels 0-7 or POD2 for
-    # digital channels 8-15
-    chanAllValidList = [str(x) for x in range(1,maxChannel+1)]+['POD1','POD2']
-        
-    # Return list of valid analog channel strings.
-    chanAnaValidList = [str(x) for x in range(1,maxChannel+1)]
-
-    def __init__(self, resource, wait=0):
+    def __init__(self, resource, maxChannel, wait=0):
         """Init the class with the instruments resource string
 
-        resource - resource string or VISA descriptor, like TCPIP0::172.16.2.13::INSTR
-        wait     - float that gives the default number of seconds to wait after sending each command
+        resource   - resource string or VISA descriptor, like TCPIP0::172.16.2.13::INSTR
+        maxChannel - number of channels of this oscilloscope
+        wait       - float that gives the default number of seconds to wait after sending each command
         """
-        super(MSOX3000, self).__init__(resource, max_chan=MSOX3000.maxChannel, wait=wait,
-                                       cmd_prefix=':',
-                                       read_strip='\n',
-                                       read_termination='',
-                                       write_termination='\n'
-                                      )
+        # NOTE: maxChannel is accessible in this package via parent as: self._max_chan
+        super(Oscilloscope, self).__init__(resource, max_chan=maxChannel, wait=wait,
+                                           cmd_prefix=':',
+                                           read_strip='\n',
+                                           read_termination='',
+                                           write_termination='\n'
+        )
+
+        # Return list of valid analog channel strings.
+        self._chanAnaValidList = [str(x) for x in range(1,self._max_chan+1)]
+
+        # list of ALL valid channel strings.
+        #
+        # NOTE: Currently, only valid values are a numerical string for
+        # the analog channels, POD1 for digital channels 0-7 or POD2 for
+        # digital channels 8-15
+        self._chanAllValidList = self._chanAnaValidList + [str(x) for x in ['POD1','POD2']]
+        
         
     # =========================================================
     # Based on the save oscilloscope setup example from the MSO-X 3000 Programming
@@ -130,7 +136,7 @@ class MSOX3000(SCPI):
         chanstr = ''
         for chan in chanlist:                        
             # Check channel value
-            if (chan not in MSOX3000.chanAllValidList):
+            if (chan not in self._chanAllValidList):
                 raise ValueError('INVALID Channel Value for AUTOSCALE: {}  SKIPPING!'.format(chan))
             else:
                 chanstr += ',' + self._channelStr(chan)
@@ -187,7 +193,7 @@ class MSOX3000(SCPI):
             raise ValueError('Channel cannot be a list for CHANNEL LABEL!')
 
         # Check channel value
-        if (self.channel not in MSOX3000.chanAnaValidList):
+        if (self.channel not in self._chanAnaValidList):
             raise ValueError('INVALID Channel Value for CHANNEL LABEL: {}  SKIPPING!'.format(self.channel))
             
         self._instWrite('CHAN{}:LABel "{}"'.format(self.channel, label))
@@ -212,7 +218,7 @@ class MSOX3000(SCPI):
             pol = '------'
         else:
             try:
-                pol = Quantity(value, MSOX3000.measureTbl[measure][0])
+                pol = Quantity(value, self._measureTbl[measure][0])
             except KeyError:
                 # If measure is None or does not exist
                 pol = Quantity(value)
@@ -220,16 +226,9 @@ class MSOX3000(SCPI):
         return pol
 
 
-    def measureStatistics(self):
-        """Returns an array of dictionaries from the current statistics window.
-
-        The definition of the returned dictionary can be easily gleaned
-        from the code below.
+    def _measureStatistics(self):
+        """Returns data from the current statistics window.
         """
-
-        # turn on the statistics display
-        self._instWrite("SYSTem:MENU MEASure")
-        self._instWrite("MEASure:STATistics:DISPlay ON")
 
         # tell Results? return all values (as opposed to just one of them)
         self._instWrite("MEASure:STATistics ON")
@@ -237,23 +236,141 @@ class MSOX3000(SCPI):
         # create a list of the return values, which are seperated by a comma
         statFlat = self._instQuery("MEASure:RESults?").split(',')
 
-        # convert the flat list into a two-dimentional matrix with seven columns per row
-        statMat = [statFlat[i:i+7] for i in range(0,len(statFlat),7)]
+        # Return flat, uninterpreted data returned from command
+        return statFlat
+    
 
-        # convert each row into a dictionary, while converting text strings into numbers
-        stats = []
-        for stat in statMat:
-            stats.append({'label':stat[0],
-                          'CURR':float(stat[1]),   # Current Value
-                          'MIN':float(stat[2]),    # Minimum Value
-                          'MAX':float(stat[3]),    # Maximum Value
-                          'MEAN':float(stat[4]),   # Average/Mean Value
-                          'STDD':float(stat[5]),   # Standard Deviation
-                          'COUN':int(stat[6])      # Count of measurements
-                          })
+    def _readDVM(self, mode, channel=None, timeout=None, wait=0.5):
+        """Read the DVM data of desired channel and return the value.
 
-        # return the result in an array of dictionaries
-        return stats
+        channel: channel, as a string, to set to DVM mode and return its
+        reading - becomes the default channel for future readings
+
+        timeout: if None, no timeout, otherwise, time-out in seconds
+        waiting for a valid number
+
+        wait: Number of seconds after select DVM mode before trying to
+        read values. Set to None for no waiting (not recommended)
+        """
+
+        # If a channel value is passed in, make it the
+        # current channel
+        if channel is not None and type(channel) is not list:
+            self.channel = channel
+
+        # Make sure channel is NOT a list
+        if type(self.channel) is list or type(channel) is list:
+            raise ValueError('Channel cannot be a list for DVM!')
+
+        # Check channel value
+        if (self.channel not in self._chanAnaValidList):
+            raise ValueError('INVALID Channel Value for DVM: {}  SKIPPING!'.format(self.channel))
+            
+        # First check if DVM is enabled
+        en = self._instQuery("DVM:ENABle?")
+        if (not self._1OR0(en)):
+            # It is not enabled, so enable it
+            self._instWrite("DVM:ENABLE ON")
+
+        # Next check if desired DVM channel is the source, if not switch it
+        #
+        # NOTE: doing it this way so as to not possibly break the
+        # moving average since do not know if buffers are cleared when
+        # the SOURCE command is sent even if the channel does not
+        # change.
+        src = self._instQuery("DVM:SOURce?")
+        #print("Source: {}".format(src))
+        if (self._chanNumber(src) != self.channel):
+            # Different channel value so switch it
+            #print("Switching to {}".format(self.channel))
+            self._instWrite("DVM:SOURce {}".format(self._channelStr(self.channel)))
+
+        # Select the desired DVM mode
+        self._instWrite("DVM:MODE {}".format(mode))
+
+        # wait a little before read value to make sure everything is switched
+        if (wait):
+            sleep(wait)
+
+        # Read value until get one < +9.9E+37 (per programming guide suggestion)
+        startTime = datetime.now()
+        val = Oscilloscope.OverRange
+        while (val >= Oscilloscope.OverRange):
+            duration = datetime.now() - startTime
+            if (timeout is not None and duration.total_seconds() >= timeout):
+                # if timeout is a value and have been waiting that
+                # many seconds for a valid DVM value, stop waiting and
+                # return this Oscilloscope.OverRange number.
+                break
+
+            val = self._instQueryNumber("DVM:CURRent?")
+
+        # if mode is frequency, read and return the 5-digit frequency instead
+        if (mode == "FREQ"):
+            val = self._instQueryNumber("DVM:FREQ?")
+
+        return val
+
+    def measureDVMacrms(self, channel=None, timeout=None, wait=0.5):
+        """Measure and return the AC RMS reading of channel using DVM
+        mode.
+
+        AC RMS is defined as 'the root-mean-square value of the acquired
+        data, with the DC component removed.'
+
+        channel: channel, as a string, to set to DVM mode and return its
+        reading - becomes the default channel for future readings
+
+        timeout: if None, no timeout, otherwise, time-out in seconds
+        waiting for a valid number - if timeout, returns Oscilloscope.OverRange
+        """
+
+        return self._readDVM("ACRM", channel, timeout, wait)
+
+    def measureDVMdc(self, channel=None, timeout=None, wait=0.5):
+        """ Measure and return the DC reading of channel using DVM mode.
+
+        DC is defined as 'the DC value of the acquired data.'
+
+        channel: channel, as a string, to set to DVM mode and return its
+        reading - becomes the default channel for future readings
+
+        timeout: if None, no timeout, otherwise, time-out in seconds
+        waiting for a valid number - if timeout, returns Oscilloscope.OverRange
+        """
+
+        return self._readDVM("DC", channel, timeout, wait)
+
+    def measureDVMdcrms(self, channel=None, timeout=None, wait=0.5):
+        """ Measure and return the DC RMS reading of channel using DVM mode.
+
+        DC RMS is defined as 'the root-mean-square value of the acquired data.'
+
+        channel: channel, as a string, to set to DVM mode and return its
+        reading - becomes the default channel for future readings
+
+        timeout: if None, no timeout, otherwise, time-out in seconds
+        waiting for a valid number - if timeout, returns Oscilloscope.OverRange
+        """
+
+        return self._readDVM("DCRM", channel, timeout, wait)
+
+    def measureDVMfreq(self, channel=None, timeout=3, wait=0.5):
+        """ Measure and return the FREQ reading of channel using DVM mode.
+
+        FREQ is defined as 'the frequency counter measurement.'
+
+        channel: channel, as a string, to set to DVM mode and return its
+        reading - becomes the default channel for future readings
+
+        timeout: if None, no timeout, otherwise, time-out in seconds
+        waiting for a valid number - if timeout, returns Oscilloscope.OverRange
+
+        NOTE: If the signal is not periodic, this call will block until
+        a frequency is measured, unless a timeout value is given.
+        """
+
+        return self._readDVM("FREQ", channel, timeout, wait)
 
     def _measure(self, mode, para=None, channel=None, wait=0.25, install=False):
         """Read and return a measurement of type mode from channel
@@ -317,6 +434,7 @@ class MSOX3000(SCPI):
 
         return float(val)
 
+
     def measureBitRate(self, channel=None, wait=0.25, install=False):
         """Measure and return the bit rate measurement.
 
@@ -325,7 +443,7 @@ class MSOX3000(SCPI):
         found of either width type and inverts that minimum width to
         give a value in Hertz'
 
-        If the returned value is >= SCPI.OverRange, then no valid value
+        If the returned value is >= Oscilloscope.OverRange, then no valid value
         could be measured.
 
         channel: channel, as string, to be measured - default channel
@@ -345,7 +463,7 @@ class MSOX3000(SCPI):
         This measurement is defined as: 'the width of the burst on the
         screen.'
 
-        If the returned value is >= SCPI.OverRange, then no valid value
+        If the returned value is >= Oscilloscope.OverRange, then no valid value
         could be measured.
 
         channel: channel, as string, to be measured - default channel
@@ -363,7 +481,7 @@ class MSOX3000(SCPI):
 
         This measurement is defined as: 'the counter frequency.'
 
-        If the returned value is >= SCPI.OverRange, then no valid value
+        If the returned value is >= Oscilloscope.OverRange, then no valid value
         could be measured.
 
         channel: channel, as string, to be measured - default channel
@@ -392,7 +510,7 @@ class MSOX3000(SCPI):
 
         duty cycle = (+pulse width/period)*100'
 
-        If the returned value is >= SCPI.OverRange, then no valid value
+        If the returned value is >= Oscilloscope.OverRange, then no valid value
         could be measured.
 
         channel: channel, as string, to be measured - default channel
@@ -417,7 +535,7 @@ class MSOX3000(SCPI):
 
         fall time = time at lower threshold - time at upper threshold'
 
-        If the returned value is >= SCPI.OverRange, then no valid value
+        If the returned value is >= Oscilloscope.OverRange, then no valid value
         could be measured.
 
         channel: channel, as string, to be measured - default channel
@@ -444,7 +562,7 @@ class MSOX3000(SCPI):
 
         rise time = time at upper threshold - time at lower threshold'
 
-        If the returned value is >= SCPI.OverRange, then no valid value
+        If the returned value is >= Oscilloscope.OverRange, then no valid value
         could be measured.
 
         channel: channel, as string, to be measured - default channel
@@ -463,7 +581,7 @@ class MSOX3000(SCPI):
         This measurement is defined as: 'the frequency of the cycle on
         the screen closest to the trigger reference.'
 
-        If the returned value is >= SCPI.OverRange, then no valid value
+        If the returned value is >= Oscilloscope.OverRange, then no valid value
         could be measured.
 
         channel: channel, as string, to be measured - default channel
@@ -487,7 +605,7 @@ class MSOX3000(SCPI):
 
         -duty cycle = (-pulse width/period)*100'
 
-        If the returned value is >= SCPI.OverRange, then no valid value
+        If the returned value is >= Oscilloscope.OverRange, then no valid value
         could be measured.
 
         channel: channel, as string, to be measured - default channel
@@ -506,7 +624,7 @@ class MSOX3000(SCPI):
         This measurement is defined as: 'the on-screen falling edge
         count'
 
-        If the returned value is >= SCPI.OverRange, then no valid value
+        If the returned value is >= Oscilloscope.OverRange, then no valid value
         could be measured.
 
         channel: channel, as string, to be measured - default channel
@@ -525,7 +643,7 @@ class MSOX3000(SCPI):
         This measurement is defined as: 'the on-screen falling pulse
         count'
 
-        If the returned value is >= SCPI.OverRange, then no valid value
+        If the returned value is >= Oscilloscope.OverRange, then no valid value
         could be measured.
 
         channel: channel, as string, to be measured - default channel
@@ -549,7 +667,7 @@ class MSOX3000(SCPI):
 
         width = (time at trailing rising edge - time at leading falling edge)'
 
-        If the returned value is >= SCPI.OverRange, then no valid value
+        If the returned value is >= Oscilloscope.OverRange, then no valid value
         could be measured.
 
         channel: channel, as string, to be measured - default channel
@@ -588,7 +706,7 @@ class MSOX3000(SCPI):
         extremum would then be dominated by the preshoot of the
         following edge.'
 
-        If the returned value is >= SCPI.OverRange, then no valid value
+        If the returned value is >= Oscilloscope.OverRange, then no valid value
         could be measured.
 
         channel: channel, as string, to be measured - default channel
@@ -627,7 +745,7 @@ class MSOX3000(SCPI):
         extremum would then be dominated by the overshoot of the
         preceding edge.'
 
-        If the returned value is >= SCPI.OverRange, then no valid value
+        If the returned value is >= Oscilloscope.OverRange, then no valid value
         could be measured.
 
         channel: channel, as string, to be measured - default channel
@@ -646,7 +764,7 @@ class MSOX3000(SCPI):
         This measurement is defined as: 'the on-screen rising edge
         count'
 
-        If the returned value is >= SCPI.OverRange, then no valid value
+        If the returned value is >= Oscilloscope.OverRange, then no valid value
         could be measured.
 
         channel: channel, as string, to be measured - default channel
@@ -665,7 +783,7 @@ class MSOX3000(SCPI):
         This measurement is defined as: 'the on-screen rising pulse
         count'
 
-        If the returned value is >= SCPI.OverRange, then no valid value
+        If the returned value is >= Oscilloscope.OverRange, then no valid value
         could be measured.
 
         channel: channel, as string, to be measured - default channel
@@ -691,7 +809,7 @@ class MSOX3000(SCPI):
 
         ELSE width = (time at leading falling edge - time at leading rising edge)'
 
-        If the returned value is >= SCPI.OverRange, then no valid value
+        If the returned value is >= Oscilloscope.OverRange, then no valid value
         could be measured.
 
         channel: channel, as string, to be measured - default channel
@@ -717,7 +835,7 @@ class MSOX3000(SCPI):
 
         ELSE period = (time at trailing falling edge - time at leading falling edge)'
 
-        If the returned value is >= SCPI.OverRange, then no valid value
+        If the returned value is >= Oscilloscope.OverRange, then no valid value
         could be measured.
 
         channel: channel, as string, to be measured - default channel
@@ -739,7 +857,7 @@ class MSOX3000(SCPI):
 
         vertical amplitude = Vtop - Vbase'
 
-        If the returned value is >= SCPI.OverRange, then no valid value
+        If the returned value is >= Oscilloscope.OverRange, then no valid value
         could be measured.
 
         channel: channel, as string, to be measured - default channel
@@ -759,7 +877,7 @@ class MSOX3000(SCPI):
         number of periods of the signal. If at least three edges are not
         present, the oscilloscope averages all data points.'
 
-        If the returned value is >= SCPI.OverRange, then no valid value
+        If the returned value is >= Oscilloscope.OverRange, then no valid value
         could be measured.
 
         channel: channel, as string, to be measured - default channel
@@ -781,7 +899,7 @@ class MSOX3000(SCPI):
         edges are not present, the oscilloscope computes the RMS value
         on all displayed data points.'
 
-        If the returned value is >= SCPI.OverRange, then no valid value
+        If the returned value is >= Oscilloscope.OverRange, then no valid value
         could be measured.
 
         channel: channel, as string, to be measured - default channel
@@ -801,7 +919,7 @@ class MSOX3000(SCPI):
         of the waveform. The base value of a pulse is normally not the
         same as the minimum value.'
 
-        If the returned value is >= SCPI.OverRange, then no valid value
+        If the returned value is >= Oscilloscope.OverRange, then no valid value
         could be measured.
 
         channel: channel, as string, to be measured - default channel
@@ -821,7 +939,7 @@ class MSOX3000(SCPI):
         of the waveform. The top value of the pulse is normally not the
         same as the maximum value.'
 
-        If the returned value is >= SCPI.OverRange, then no valid value
+        If the returned value is >= Oscilloscope.OverRange, then no valid value
         could be measured.
 
         channel: channel, as string, to be measured - default channel
@@ -840,7 +958,7 @@ class MSOX3000(SCPI):
         This measurement is defined as: 'the maximum vertical value
         present on the selected waveform.'
 
-        If the returned value is >= SCPI.OverRange, then no valid value
+        If the returned value is >= Oscilloscope.OverRange, then no valid value
         could be measured.
 
         channel: channel, as string, to be measured - default channel
@@ -860,7 +978,7 @@ class MSOX3000(SCPI):
         This measurement is defined as: 'the minimum vertical value
         present on the selected waveform.'
 
-        If the returned value is >= SCPI.OverRange, then no valid value
+        If the returned value is >= Oscilloscope.OverRange, then no valid value
         could be measured.
 
         channel: channel, as string, to be measured - default channel
@@ -888,7 +1006,7 @@ class MSOX3000(SCPI):
         Vmax and Vmin are the vertical maximum and minimum values
         present on the selected source.'
 
-        If the returned value is >= SCPI.OverRange, then no valid value
+        If the returned value is >= Oscilloscope.OverRange, then no valid value
         could be measured.
 
         channel: channel, as string, to be measured - default channel
@@ -901,312 +1019,9 @@ class MSOX3000(SCPI):
 
         return self._measure("VPP", channel=channel, wait=wait, install=install)
 
-
-    def _readDVM(self, mode, channel=None, timeout=None, wait=0.5):
-        """Read the DVM data of desired channel and return the value.
-
-        channel: channel, as a string, to set to DVM mode and return its
-        reading - becomes the default channel for future readings
-
-        timeout: if None, no timeout, otherwise, time-out in seconds
-        waiting for a valid number
-
-        wait: Number of seconds after select DVM mode before trying to
-        read values. Set to None for no waiting (not recommended)
-        """
-
-        # If a channel value is passed in, make it the
-        # current channel
-        if channel is not None and type(channel) is not list:
-            self.channel = channel
-
-        # Make sure channel is NOT a list
-        if type(self.channel) is list or type(channel) is list:
-            raise ValueError('Channel cannot be a list for DVM!')
-
-        # Check channel value
-        if (self.channel not in MSOX3000.chanAnaValidList):
-            raise ValueError('INVALID Channel Value for DVM: {}  SKIPPING!'.format(self.channel))
-            
-        # First check if DVM is enabled
-        en = self._instQuery("DVM:ENABle?")
-        if (not self._1OR0(en)):
-            # It is not enabled, so enable it
-            self._instWrite("DVM:ENABLE ON")
-
-        # Next check if desired DVM channel is the source, if not switch it
-        #
-        # NOTE: doing it this way so as to not possibly break the
-        # moving average since do not know if buffers are cleared when
-        # the SOURCE command is sent even if the channel does not
-        # change.
-        src = self._instQuery("DVM:SOURce?")
-        #print("Source: {}".format(src))
-        if (self._chanNumber(src) != self.channel):
-            # Different channel value so switch it
-            #print("Switching to {}".format(self.channel))
-            self._instWrite("DVM:SOURce {}".format(self._channelStr(self.channel)))
-
-        # Select the desired DVM mode
-        self._instWrite("DVM:MODE {}".format(mode))
-
-        # wait a little before read value to make sure everything is switched
-        if (wait):
-            sleep(wait)
-
-        # Read value until get one < +9.9E+37 (per programming guide suggestion)
-        startTime = datetime.now()
-        val = SCPI.OverRange
-        while (val >= SCPI.OverRange):
-            duration = datetime.now() - startTime
-            if (timeout is not None and duration.total_seconds() >= timeout):
-                # if timeout is a value and have been waiting that
-                # many seconds for a valid DVM value, stop waiting and
-                # return this SCPI.OverRange number.
-                break
-
-            val = self._instQueryNumber("DVM:CURRent?")
-
-        # if mode is frequency, read and return the 5-digit frequency instead
-        if (mode == "FREQ"):
-            val = self._instQueryNumber("DVM:FREQ?")
-
-        return val
-
-    def measureDVMacrms(self, channel=None, timeout=None, wait=0.5):
-        """Measure and return the AC RMS reading of channel using DVM
-        mode.
-
-        AC RMS is defined as 'the root-mean-square value of the acquired
-        data, with the DC component removed.'
-
-        channel: channel, as a string, to set to DVM mode and return its
-        reading - becomes the default channel for future readings
-
-        timeout: if None, no timeout, otherwise, time-out in seconds
-        waiting for a valid number - if timeout, returns SCPI.OverRange
-        """
-
-        return self._readDVM("ACRM", channel, timeout, wait)
-
-    def measureDVMdc(self, channel=None, timeout=None, wait=0.5):
-        """ Measure and return the DC reading of channel using DVM mode.
-
-        DC is defined as 'the DC value of the acquired data.'
-
-        channel: channel, as a string, to set to DVM mode and return its
-        reading - becomes the default channel for future readings
-
-        timeout: if None, no timeout, otherwise, time-out in seconds
-        waiting for a valid number - if timeout, returns SCPI.OverRange
-        """
-
-        return self._readDVM("DC", channel, timeout, wait)
-
-    def measureDVMdcrms(self, channel=None, timeout=None, wait=0.5):
-        """ Measure and return the DC RMS reading of channel using DVM mode.
-
-        DC RMS is defined as 'the root-mean-square value of the acquired data.'
-
-        channel: channel, as a string, to set to DVM mode and return its
-        reading - becomes the default channel for future readings
-
-        timeout: if None, no timeout, otherwise, time-out in seconds
-        waiting for a valid number - if timeout, returns SCPI.OverRange
-        """
-
-        return self._readDVM("DCRM", channel, timeout, wait)
-
-    def measureDVMfreq(self, channel=None, timeout=3, wait=0.5):
-        """ Measure and return the FREQ reading of channel using DVM mode.
-
-        FREQ is defined as 'the frequency counter measurement.'
-
-        channel: channel, as a string, to set to DVM mode and return its
-        reading - becomes the default channel for future readings
-
-        timeout: if None, no timeout, otherwise, time-out in seconds
-        waiting for a valid number - if timeout, returns SCPI.OverRange
-
-        NOTE: If the signal is not periodic, this call will block until
-        a frequency is measured, unless a timeout value is given.
-        """
-
-        return self._readDVM("FREQ", channel, timeout, wait)
-
-
-    # =========================================================
-    # Based on the screen image download example from the MSO-X 3000 Programming
-    # Guide and modified to work within this class ...
-    # =========================================================
-    def hardcopy(self, filename):
-        """ Download the screen image to the given filename. """
-
-        self._instWrite("HARDcopy:INKSaver OFF")
-        scrImage = self._instQueryIEEEBlock("DISPlay:DATA? PNG, COLor")
-
-        # Save display data values to file.
-        f = open(filename, "wb")
-        f.write(scrImage)
-        f.close()
-
-    # =========================================================
-    # Based on the Waveform data download example from the MSO-X 3000 Programming
-    # Guide and modified to work within this class ...
-    # =========================================================
-    def waveform(self, filename, channel=None, points=None):
-        """ Download the Waveform Data of a particular Channel and saved to the given filename as a CSV file. """
-
-        DEBUG = False
-        import csv
-
-        # If a channel value is passed in, make it the
-        # current channel
-        if channel is not None and type(channel) is not list:
-            self.channel = channel
-
-        # Make sure channel is NOT a list
-        if type(self.channel) is list or type(channel) is list:
-            raise ValueError('Channel cannot be a list for WAVEFORM!')
-
-        # Check channel value
-        if (self.channel not in MSOX3000.chanAllValidList):
-            raise ValueError('INVALID Channel Value for WAVEFORM: {}  SKIPPING!'.format(self.channel))            
-            
-        if self.channel.upper().startswith('POD'):
-            pod = int(self.channel[-1])
-        else:
-            pod = None
-
-        # Download waveform data.
-        # Set the waveform points mode.
-        self._instWrite("WAVeform:POINts:MODE MAX")
-        if DEBUG:
-            qresult = self._instQuery("WAVeform:POINts:MODE?")
-            print( "Waveform points mode: {}".format(qresult) )
-
-        # Set the number of waveform points to fetch, if it was passed in
-        if (points is not None):
-            self._instWrite("WAVeform:POINts {}".format(points))
-            if DEBUG:
-                qresult = self._instQuery("WAVeform:POINts?")
-                print( "Waveform points available: {}".format(qresult) )
-
-        # Set the waveform source.
-        self._instWrite("WAVeform:SOURce {}".format(self._channelStr(self.channel)))
-        if DEBUG:
-            qresult = self._instQuery("WAVeform:SOURce?")
-            print( "Waveform source: {}".format(qresult) )
-
-        # Choose the format of the data returned:
-        self._instWrite("WAVeform:FORMat BYTE")
-        if DEBUG:
-            print( "Waveform format: {}".format(self._instQuery("WAVeform:FORMat?")) )
-
-        if DEBUG:
-            # Display the waveform settings from preamble:
-            wav_form_dict = {
-                0 : "BYTE",
-                1 : "WORD",
-                4 : "ASCii", }
-
-            acq_type_dict = {
-                0 : "NORMal",
-                1 : "PEAK",
-                2 : "AVERage",
-                3 : "HRESolution",
-            }
-
-            (
-                wav_form_f,
-                acq_type_f,
-                wfmpts_f,
-                avgcnt_f,
-                x_increment,
-                x_origin,
-                x_reference_f,
-                y_increment,
-                y_origin,
-                y_reference_f
-            ) = self._instQueryNumbers("WAVeform:PREamble?")
-
-            ## convert the numbers that are meant to be integers
-            (
-                wav_form,
-                acq_type,
-                wfmpts,
-                avgcnt,
-                x_reference,
-                y_reference
-            ) = list(map(int,         (
-                wav_form_f,
-                acq_type_f,
-                wfmpts_f,
-                avgcnt_f,
-                x_reference_f,
-                y_reference_f
-            )))
-
-
-            print( "Waveform format: {}".format(wav_form_dict[(wav_form)]) )
-            print( "Acquire type: {}".format(acq_type_dict[(acq_type)]) )
-            print( "Waveform points desired: {:d}".format((wfmpts)) )
-            print( "Waveform average count: {:d}".format((avgcnt)) )
-            print( "Waveform X increment: {:1.12f}".format(x_increment) )
-            print( "Waveform X origin: {:1.9f}".format(x_origin) )
-            print( "Waveform X reference: {:d}".format((x_reference)) ) # Always 0.
-            print( "Waveform Y increment: {:f}".format(y_increment) )
-            print( "Waveform Y origin: {:f}".format(y_origin) )
-            print( "Waveform Y reference: {:d}".format((y_reference)) ) # Always 125.
-
-        # Get numeric values for later calculations.
-        x_increment = self._instQueryNumber("WAVeform:XINCrement?")
-        x_origin = self._instQueryNumber("WAVeform:XORigin?")
-        y_increment = self._instQueryNumber("WAVeform:YINCrement?")
-        y_origin = self._instQueryNumber("WAVeform:YORigin?")
-        y_reference = self._instQueryNumber("WAVeform:YREFerence?")
-
-        # Get the waveform data.
-        waveform_data = self._instQueryIEEEBlock("WAVeform:DATA?")
-
-        if (version_info < (3,)):
-            ## If PYTHON 2, waveform_data will be a string and needs to be converted into a list of integers
-            data_bytes = [ord(x) for x in waveform_data]
-        else:
-            ## If PYTHON 3, waveform_data is already in the correct format
-            data_bytes = waveform_data
-
-        nLength = len(data_bytes)
-        if (DEBUG):
-            print( "Number of data values: {:d}".format(nLength) )
-
-        # Open file for output.
-        myFile = open(filename, 'w')
-        with myFile:
-            writer = csv.writer(myFile, dialect='excel', quoting=csv.QUOTE_NONNUMERIC)
-            if pod:
-                writer.writerow(['Time (s)'] + ['D{}'.format((pod-1) * 8 + ch) for ch in range(8)])
-            else:
-                writer.writerow(['Time (s)', 'Voltage (V)'])
-
-            # Output waveform data in CSV format.
-            for i in range(0, nLength - 1):
-                time_val = x_origin + (i * x_increment)
-                if pod:
-                    writer.writerow([time_val] + [(data_bytes[i] >> ch) & 1 for ch in range(8)])
-                else:
-                    voltage = (data_bytes[i] - y_reference) * y_increment + y_origin
-                    writer.writerow([time_val, voltage])
-
-        if (DEBUG):
-            print( "Waveform format BYTE data written to {}.".format(filename) )
-
-        # return number of entries written
-        return nLength
-
     ## This is a dictionary of measurement labels with their units and
     ## method to get the data from the scope.
-    measureTbl = {
+    _measureTbl = {
         'Bit Rate': ['Hz', measureBitRate],
         'Burst Width': ['s', measureBurstWidth],
         'Counter Freq': ['Hz', measureCounterFrequency],
@@ -1230,103 +1045,9 @@ class MSOX3000(SCPI):
         'Maximum': ['V', measureVoltMax],
         'Minimum': ['V', measureVoltMin],
         'Pk-Pk': ['V', measureVoltPP],
+        'V p-p': ['V', measureVoltPP],
         'Average - Full Screen': ['V', measureVoltAverage],
         'RMS - Full Screen': ['V', measureVoltRMS],
         }
 
-if __name__ == '__main__':
-    import argparse
-    parser = argparse.ArgumentParser(description='Access and control a MSO-X/DSO-X 3000 Oscilloscope')
-    parser.add_argument('chan', nargs='?', type=int, help='Channel to access/control (starts at 1)', default=1)
-    args = parser.parse_args()
-
-    from os import environ
-    resource = environ.get('MSOX3000_IP', 'TCPIP0::172.16.2.13::INSTR')
-    instr = MSOX3000(resource)
-    instr.open()
-
-    # set the channel (can pass channel to each method or just set it
-    # once and it becomes the default for all following calls)
-    instr.channel = str(args.chan)
-
-    if not instr.isOutputOn():
-        instr.outputOn()
-
-    # Install measurements to display in statistics display and also
-    # return their current values
-    print('Ch. {} Settings: {:6.4e} V  PW {:6.4e} s\n'.
-              format(instr.channel, instr.measureVoltAverage(install=True),
-                         instr.measurePosPulseWidth(install=True)))
-
-    # Add an annotation to the screen before hardcopy
-    instr._instWrite("DISPlay:ANN ON")
-    instr._instWrite('DISPlay:ANN:TEXT "{}\\n{} {}"'.format('Example of Annotation','for Channel',instr.channel))
-    instr._instWrite("DISPlay:ANN:BACKground TRAN")   # transparent background - can also be OPAQue or INVerted
-    instr._instWrite("DISPlay:ANN:COLor CH{}".format(instr.channel))
-
-    # Change label of the channel to "MySig"
-    instr._instWrite('CHAN{}:LABel "MySig"'.format(instr.channel))
-    instr._instWrite('DISPlay:LABel ON')
-
-    # Make sure the statistics display is showing
-    instr._instWrite("SYSTem:MENU MEASure")
-    instr._instWrite("MEASure:STATistics:DISPlay ON")
-
-    ## Save a hardcopy of the screen
-    instr.hardcopy('outfile.png')
-
-    # Change label back to the default
-    instr._instWrite('CHAN{}:LABel "{}"'.format(instr.channel, instr.channel))
-    instr._instWrite('DISPlay:LABel OFF')
-
-    # Turn off the annotation
-    instr._instWrite("DISPlay:ANN OFF")
-
-    ## Read ALL available measurements from channel, without installing
-    ## to statistics display, with units
-    print('\nMeasurements for Ch. {}:'.format(instr.channel))
-    measurements = ['Bit Rate',
-                    'Burst Width',
-                    'Counter Freq',
-                    'Frequency',
-                    'Period',
-                    'Duty',
-                    'Neg Duty',
-                    '+ Width',
-                    '- Width',
-                    'Rise Time',
-                    'Num Rising',
-                    'Num Pos Pulses',
-                    'Fall Time',
-                    'Num Falling',
-                    'Num Neg Pulses',
-                    'Overshoot',
-                    'Preshoot',
-                    '',
-                    'Amplitude',
-                    'Pk-Pk',
-                    'Top',
-                    'Base',
-                    'Maximum',
-                    'Minimum',
-                    'Average - Full Screen',
-                    'RMS - Full Screen',
-                    ]
-    for meas in measurements:
-        if (meas == ''):
-            # use a blank string to put in an extra line
-            print()
-        else:
-            # using MSOX3000.measureTbl[] dictionary, call the
-            # appropriate method to read the measurement. Also, using
-            # the same measurement name, pass it to the polish() method
-            # to format the data with units and SI suffix.
-            print('{: <24} {:>12.6}'.format(meas,instr.polish(MSOX3000.measureTbl[meas][1](instr), meas)))
-
-    ## turn off the channel
-    instr.outputOff()
-
-    ## return to LOCAL mode
-    instr.setLocal()
-
-    instr.close()
+    
