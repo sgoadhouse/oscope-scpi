@@ -32,9 +32,9 @@ from __future__ import division
 from __future__ import print_function
 
 try:
-    from . import Oscilloscope
+    from . import Keysight
 except Exception:
-    from oscilloscope import Oscilloscope
+    from keysight import Keysight
 
 from time import sleep
 from datetime import datetime
@@ -42,7 +42,7 @@ from quantiphy import Quantity
 from sys import version_info
 import pyvisa as visa
 
-class MSOX3000(Oscilloscope):
+class MSOX3000(Keysight):
     """Basic class for controlling and accessing a HP/Agilent/Keysight MSO-X/DSO-X 3000A Oscilloscope"""
 
     maxChannel = 4
@@ -136,7 +136,7 @@ class MSOX3000(Oscilloscope):
 
         """
 
-        if (value >= Oscilloscope.OverRange):
+        if (value >= Keysight.OverRange):
             pol = '------'
         else:
             try:

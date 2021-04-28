@@ -23,7 +23,7 @@
 # SOFTWARE.
 
 #-------------------------------------------------------------------------------
-#  Control of HP/Agilent/Keysight MSO-X/DSO-X 3000A Oscilloscope with PyVISA
+#  Control of Keysight MXR series Oscilloscopes with PyVISA
 #-------------------------------------------------------------------------------
 
 # For future Python3 compatibility:
@@ -32,9 +32,9 @@ from __future__ import division
 from __future__ import print_function
 
 try:
-    from . import Oscilloscope
+    from . import Keysight
 except Exception:
-    from oscilloscope import Oscilloscope
+    from keysight import Keysight
 
 from time import sleep
 from datetime import datetime
@@ -42,28 +42,17 @@ from quantiphy import Quantity
 from sys import version_info
 import pyvisa as visa
 
-class MXR058A(Oscilloscope):
-    """Basic class for controlling and accessing a Keysight MXR058A Oscilloscope"""
+class MXR(Keysight):
+    """Basic class for controlling and accessing a Keysight MXR Series Oscilloscope"""
 
-    maxChannel = 8
-
-    # Return list of ALL valid channel strings.
-    #
-    # NOTE: Currently, only valid values are a numerical string for
-    # the analog channels, POD1 for digital channels 0-7 or POD2 for
-    # digital channels 8-15
-    chanAllValidList = [str(x) for x in range(1,maxChannel+1)]+['POD1','POD2']
-        
-    # Return list of valid analog channel strings.
-    chanAnaValidList = [str(x) for x in range(1,maxChannel+1)]
-
-    def __init__(self, resource, wait=0):
+    def __init__(self, resource, maxChannel=4, wait=0):
         """Init the class with the instruments resource string
 
-        resource - resource string or VISA descriptor, like TCPIP0::172.16.2.13::INSTR
-        wait     - float that gives the default number of seconds to wait after sending each command
+        resource   - resource string or VISA descriptor, like TCPIP0::172.16.2.13::INSTR
+        maxChannel - number of channels of this oscilloscope
+        wait       - float that gives the default number of seconds to wait after sending each command
         """
-        super(MXR058A, self).__init__(resource, maxChannel=MXR058A.maxChannel, wait=wait)
+        super(MXR, self).__init__(resource, maxChannel, wait)
 
 
     def measureStatistics(self):
@@ -73,7 +62,7 @@ class MXR058A(Oscilloscope):
         from the code below.
         """
 
-        statFlat = super(MXR058A, self)._measureStatistics()
+        statFlat = super(MXR, self)._measureStatistics()
         
         # convert the flat list into a two-dimentional matrix with seven columns per row
         statMat = [statFlat[i:i+7] for i in range(0,len(statFlat),7)]
@@ -97,5 +86,29 @@ class MXR058A(Oscilloscope):
         """ This is not a defined MODE for MXR series, so return string saying so
         """
 
-        return Oscilloscope.OverRange
+        return Keysight.OverRange
+
+class MXR058A(MXR):
+    """Child class of Keysight for controlling and accessing a Keysight MXR058A Oscilloscope"""
+
+    maxChannel = 8
+
+    # Return list of ALL valid channel strings.
+    #
+    # NOTE: Currently, only valid values are a numerical string for
+    # the analog channels, POD1 for digital channels 0-7 or POD2 for
+    # digital channels 8-15
+    chanAllValidList = [str(x) for x in range(1,maxChannel+1)]+['POD1','POD2']
+        
+    # Return list of valid analog channel strings.
+    chanAnaValidList = [str(x) for x in range(1,maxChannel+1)]
+
+    def __init__(self, resource, wait=0):
+        """Init the class with the instruments resource string
+
+        resource - resource string or VISA descriptor, like TCPIP0::172.16.2.13::INSTR
+        wait     - float that gives the default number of seconds to wait after sending each command
+        """
+        super(MXR058A, self).__init__(resource, maxChannel=MXR058A.maxChannel, wait=wait)
+
 
