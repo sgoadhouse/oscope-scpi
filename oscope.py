@@ -49,7 +49,8 @@ import sys
 import argparse
 
 from datetime import datetime
-from msox3000 import MSOX3000
+#@@@#from oscope_scpi import MSOX3000
+from oscope_scpi import MXR058A
 
 def handleFilename(fname, ext, unique=True, timestamp=True):
 
@@ -86,34 +87,85 @@ def handleFilename(fname, ext, unique=True, timestamp=True):
 
     return fn
 
+def parse(scope):
+
+    parser = argparse.ArgumentParser(description='Access Agilent/KeySight MSO3034A scope')
+    parser.add_argument('--hardcopy', '-y', metavar='outfile.png', help='grab hardcopy of scope screen and output to named file as a PNG image')
+    parser.add_argument('--waveform', '-w', nargs=2, metavar=('channel', 'outfile.csv'), action='append',
+                        help='grab waveform data of channel ('+ str(scope.chanAllValidList).strip('[]') + ') and output to named file as a CSV file')
+    parser.add_argument('--setup_save', '-s', metavar='outfile.stp', help='save the current setup of the oscilloscope into the named file')
+    parser.add_argument('--setup_load', '-l', metavar='infile.stp', help='load the current setup of the oscilloscope from the named file')
+    parser.add_argument('--statistics', '-t', action='store_true', help='dump to the output the current displayed measurements')
+    parser.add_argument('--autoscale', '-u',  nargs='?', action='append', choices=scope.chanAllValidList,
+                            help='cause selected channel to get displayed and autoscaled. Can issue multiples of this option. Leave arg blank to autoscale displayed channels.')
+    parser.add_argument('--dvm', '-d', nargs=1, action='append', choices=scope.chanAnaValidList,
+                            help='measure and output the DVM readings of selected channel')
+    parser.add_argument('--measure', '-m', nargs=1, action='append', choices=scope.chanAnaValidList,
+                            help='measure and output the selected channel')
+    parser.add_argument('--annotate', '-a', nargs='?', metavar='text', const=' ', help='Add annotation text to screen. Clear text if label is blank')
+    parser.add_argument('--annocolor', '-c', nargs=1, metavar='color', 
+                            choices=['ch'+str(x) for x in scope.chanAnaValidList] + ['dig', 'math', 'ref', 'marker', 'white', 'red'],
+                            help='Set the annotation color to use. Valid values: %(choices)s')
+    parser.add_argument('--label', '-b',  nargs=2, action='append', metavar=('channel', 'label'), 
+                            help='Change label of selected channel (' + str(scope.chanAnaValidList).strip('[]') + ')')
+
+    # Print help if no options are given on the command line
+    if (len(sys.argv) <= 1):
+        parser.print_help(sys.stderr)
+        sys.exit(1)
+
+    args = parser.parse_args()
+
+    # Because of how Keysight now uses Bookmarks instead of
+    # annotation, must require that if annotate is given, annocolor
+    # must be given or vice versa. However, if given args.annotate
+    # with whitespace, it means that the user wants to turn off the
+    # bookmark so allow that without annocolor.    
+    if (args.annotate):
+        text = args.annotate
+    else:
+        text = ' '
+    if ((text.strip() and args.annotate and args.annocolor is None) or (args.annotate is None and args.annocolor)):
+        parser.error("--annotate requires --annocolor and vice versa")
+    
+    return args
 
 def main():
 
     # Set to the IP address of the oscilloscope
-    agilent_msox_3034a = os.environ.get('MSOX3000_IP', 'TCPIP0::172.16.2.13::INSTR')
+    #@@@#agilent_msox_3034a = os.environ.get('MSOX3000_IP', 'TCPIP0::172.16.2.13::INSTR')
+    agilent_mxr_058a = os.environ.get('MXR058A_IP', 'TCPIP0::172.16.2.13::INSTR')
     
     ## Connect to the Oscilloscope
-    scope = MSOX3000(agilent_msox_3034a)
+    #@@@#scope = MSOX3000(agilent_msox_3034a)
+    scope = MXR058A(agilent_mxr_058a)
     scope.open()
 
-    print(scope.idn())
+    print('Found SCPI Device: ' + scope.idn() + '\n')
 
+    # parse command line options with knowledge of instrument
+    args = parse(scope)
+    
     if (args.dvm):
         for lst in args.dvm:
             try:
+                # Save if DVM mode was enabled or not
+                # measureDVM functions will enable it if it is not already
+                dvmEnabledAtStart = scope.DVMisEnabled()
+                
                 chan = lst[0]
                 acrms = scope.measureDVMacrms(chan)
                 dc = scope.measureDVMdc(chan)
                 dcrms = scope.measureDVMdcrms(chan)
                 freq = scope.measureDVMfreq(chan)
 
-                if (acrms >= MSOX3000.OverRange):
+                if (acrms >= scope.OverRange):
                     acrms = 'INVALID '
-                if (dc >= MSOX3000.OverRange):
+                if (dc >= scope.OverRange):
                     dc = 'INVALID '
-                if (dcrms >= MSOX3000.OverRange):
+                if (dcrms >= scope.OverRange):
                     dcrms = 'INVALID '
-                if (freq >= MSOX3000.OverRange):
+                if (freq >= scope.OverRange):
                     freq = 'INVALID '
             
                 print("Ch.{}: {: 7.5f}V ACRMS".format(chan,acrms))
@@ -121,24 +173,29 @@ def main():
                 print("Ch.{}: {: 7.5f}V DCRMS".format(chan,dcrms))
                 print("Ch.{}: {}Hz FREQ".format(chan,freq))
 
+                # Turn off DVM mode if it was off to begin with
+                if (not dvmEnabledAtStart):
+                    scope.enableDVM(False)
+                
             except ValueError as exp:
                 print(exp)
                 
     if (args.statistics):
         stats = scope.measureStatistics()
 
-        print('\nNOTE: If returned value is >= {}, then it is to be considered INVALID\n'.format(MSOX3000.OverRange))
+        #@@@#print('\nNOTE: If returned value is >= {}, then it is to be considered INVALID\n'.format(MSOX3000.OverRange))
+        print('\nNOTE: If returned value is >= {}, then it is to be considered INVALID\n'.format(scope.OverRange))
         print('{: ^24} {: ^12} {: ^12} {: ^12} {: ^12} {: ^12} {: ^12}'.format('Measure', 'Current', 'Mean', 'Min', 'Max', 'Std Dev', 'Count'))
         for stat in stats:
             measure = stat['label'].split('(')[0]   # pull out the measurement name from the label (which has a '(channel)' suffix)
-            print('{: <24} {:>12.6} {:>12.6} {:>12.6} {:>12.6} {:>12.6} {:>12.1}'.format(
+            print('{: <24} {:>12.6} {:>12.6} {:>12.6} {:>12.6} {:>12.6} {:>12}'.format(
                 stat['label'],
                 scope.polish(stat['CURR'],measure),
                 scope.polish(stat['MIN'],measure),
                 scope.polish(stat['MAX'],measure),
                 scope.polish(stat['MEAN'],measure),
                 scope.polish(stat['STDD'],measure),
-                scope.polish(stat['COUN'])   # no units needed here
+                stat['COUN']   # no units or polish needed here
                 ))
         print()
         
@@ -147,7 +204,8 @@ def main():
             try:
                 chan = lst[0]
 
-                print('\nNOTE: If returned value is >= {}, then it is to be considered INVALID'.format(MSOX3000.OverRange))
+                #@@@#print('\nNOTE: If returned value is >= {}, then it is to be considered INVALID'.format(MSOX3000.OverRange))
+                print('\nNOTE: If returned value is >= {}, then it is to be considered INVALID'.format(scope.OverRange))
                 print('\nMeasurements for Ch. {}:'.format(chan))
                 measurements = ['Bit Rate',
                                 'Burst Width',
@@ -186,7 +244,8 @@ def main():
                         # measurement. Also, using the same measurement
                         # name, pass it to the polish() method to format
                         # the data with units and SI suffix.
-                        print('{: <24} {:>12.6}'.format(meas,scope.polish(MSOX3000.measureTbl[meas][1](scope, chan), meas)))
+                        #@@@#print('{: <24} {:>12.6}'.format(meas,scope.polish(MSOX3000.measureTbl[meas][1](scope, chan), meas)))
+                        print('{: <24} {:>12.6}'.format(meas,scope.polish(scope.measureTbl[meas][1](scope, chan), meas)))
 
             except ValueError as exp:
                 print(exp)
@@ -202,7 +261,7 @@ def main():
             scope.annotateOff()
         else:
             # TRAN = transparent background - can also be OPAQue or INVerted
-            scope.annotate(text, background='TRAN')
+            scope.annotate(text)
             
     if (args.annocolor):
         # If the annocolor option is given, simply change the color,
@@ -228,7 +287,8 @@ def main():
             try:
                 # check the channel
                 channel = nxt[0]
-                if (channel in MSOX3000.chanAllValidList):
+                #@@@#if (channel in MSOX3000.chanAllValidList):
+                if (channel in scope.chanAllValidList):
                     fn = handleFilename(nxt[1], 'csv')
                     dataLen = scope.waveform(fn, channel)
                     print("Waveform Output of Channel {} in {} points to file {}".format(channel,dataLen,fn))
@@ -254,7 +314,12 @@ def main():
 
     if (args.autoscale):
         try:
-            scope.setupAutoscale([x[0] for x in args.autoscale])
+            # If no argument, chans will be a list with None
+            if (args.autoscale[0] is None):
+                chans = None
+            else:
+                chans = [scope.channelStr(x) for x in args.autoscale]
+            scope.setupAutoscale(chans)
         except ValueError as exp:
             print(exp)
                 
@@ -304,31 +369,4 @@ def main():
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Access Agilent/KeySight MSO3034A scope')
-    parser.add_argument('--hardcopy', '-y', metavar='outfile.png', help='grab hardcopy of scope screen and output to named file as a PNG image')
-    parser.add_argument('--waveform', '-w', nargs=2, metavar=('channel', 'outfile.csv'), action='append',
-                        help='grab waveform data of channel ('+ str(MSOX3000.chanAllValidList).strip('[]') + ') and output to named file as a CSV file')
-    parser.add_argument('--setup_save', '-s', metavar='outfile.stp', help='save the current setup of the oscilloscope into the named file')
-    parser.add_argument('--setup_load', '-l', metavar='infile.stp', help='load the current setup of the oscilloscope from the named file')
-    parser.add_argument('--statistics', '-t', action='store_true', help='dump to the output the current displayed measurements')
-    parser.add_argument('--autoscale', '-u',  nargs=1, action='append', choices=MSOX3000.chanAllValidList,
-                            help='cause selected channel to autoscale')
-    parser.add_argument('--dvm', '-d', nargs=1, action='append', choices=MSOX3000.chanAnaValidList,
-                            help='measure and output the DVM readings of selected channel')
-    parser.add_argument('--measure', '-m', nargs=1, action='append', choices=MSOX3000.chanAnaValidList,
-                            help='measure and output the selected channel')
-    parser.add_argument('--annotate', '-a', nargs='?', metavar='text', const=' ', help='Add annotation text to screen. Clear text if label is blank')
-    parser.add_argument('--annocolor', '-c', nargs=1, metavar='color', 
-                            choices=['ch1', 'ch2', 'ch3', 'ch4', 'dig', 'math', 'ref', 'marker', 'white', 'red'],
-                            help='Set the annotation color to use. Valid values: %(choices)s')
-    parser.add_argument('--label', '-b',  nargs=2, action='append', metavar=('channel', 'label'), 
-                            help='Change label of selected channel (' + str(MSOX3000.chanAnaValidList).strip('[]') + ')')
-
-    # Print help if no options are given on the command line
-    if (len(sys.argv) <= 1):
-        parser.print_help(sys.stderr)
-        sys.exit(1)
-
-    args = parser.parse_args()
-
     main()
