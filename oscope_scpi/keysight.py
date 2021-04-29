@@ -220,6 +220,27 @@ class Keysight(Oscilloscope):
         # Issue autoscale
         self.autoscale()
 
+    # =========================================================
+    # Based on the screen image download example from the MSO-X 3000 Programming
+    # Guide and modified to work within this class ...
+    # =========================================================
+    def hardcopy(self, filename):
+        """ Download the screen image to the given filename. """
+
+        if (self._version > 2.60):
+            para = 'PNG,SCReen,ON,NORMal'
+        else:
+            self._instWrite("HARDcopy:INKSaver OFF")
+            para = 'PNG,COLor'
+
+        scrImage = self._instQueryIEEEBlock("DISPlay:DATA? "+para)
+
+        # Save display data values to file.
+        f = open(filename, "wb")
+        f.write(scrImage)
+        f.close()
+
+
     def polish(self, value, measure=None):
         """ Using the QuantiPhy package, return a value that is in apparopriate Si units.
 

@@ -170,21 +170,6 @@ class MSOX3000(Keysight):
         return stats
     
     # =========================================================
-    # Based on the screen image download example from the MSO-X 3000 Programming
-    # Guide and modified to work within this class ...
-    # =========================================================
-    def hardcopy(self, filename):
-        """ Download the screen image to the given filename. """
-
-        self._instWrite("HARDcopy:INKSaver OFF")
-        scrImage = self._instQueryIEEEBlock("DISPlay:DATA? PNG, COLor")
-
-        # Save display data values to file.
-        f = open(filename, "wb")
-        f.write(scrImage)
-        f.close()
-
-    # =========================================================
     # Based on the Waveform data download example from the MSO-X 3000 Programming
     # Guide and modified to work within this class ...
     # =========================================================
