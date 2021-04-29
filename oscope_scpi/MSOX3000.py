@@ -130,7 +130,7 @@ class MSOX3000(Keysight):
             pol = '------'
         else:
             try:
-                pol = Quantity(value, MSOX3000.measureTbl[measure][0])
+                pol = Quantity(value, self.measureTblUnits(measure))
             except KeyError:
                 # If measure is None or does not exist
                 pol = Quantity(value)
@@ -425,7 +425,7 @@ if __name__ == '__main__':
             # appropriate method to read the measurement. Also, using
             # the same measurement name, pass it to the polish() method
             # to format the data with units and SI suffix.
-            print('{: <24} {:>12.6}'.format(meas,instr.polish(MSOX3000.measureTbl[meas][1](instr), meas)))
+            print('{: <24} {:>12.6}'.format(meas,instr.polish(instr.measureTblCall(meas), meas)))
 
     ## turn off the channel
     instr.outputOff()

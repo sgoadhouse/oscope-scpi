@@ -244,8 +244,7 @@ def main():
                         # measurement. Also, using the same measurement
                         # name, pass it to the polish() method to format
                         # the data with units and SI suffix.
-                        #@@@#print('{: <24} {:>12.6}'.format(meas,scope.polish(MSOX3000.measureTbl[meas][1](scope, chan), meas)))
-                        print('{: <24} {:>12.6}'.format(meas,scope.polish(scope.measureTbl[meas][1](scope, chan), meas)))
+                        print('{: <24} {:>12.6}'.format(meas,scope.polish(scope.measureTblCall(meas, chan), meas)))
 
             except ValueError as exp:
                 print(exp)

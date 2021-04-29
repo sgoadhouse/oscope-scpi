@@ -407,6 +407,8 @@ class Keysight(Oscilloscope):
     def _measure(self, mode, para=None, channel=None, wait=0.25, install=False):
         """Read and return a measurement of type mode from channel
 
+           mode - selected measurement as a string
+
            para - parameters to be passed to command
 
            channel - channel to be measured starting at 1. Must be a string, ie. '1'
@@ -426,7 +428,7 @@ class Keysight(Oscilloscope):
             raise ValueError('Channel cannot be a list for MEASURE!')
 
         # Check channel value
-        if (self.channel not in self._chanAllValidList):
+        if (self.channel not in self._chanAnaValidList):
             raise ValueError('INVALID Channel Value for MEASURE: {}  SKIPPING!'.format(self.channel))
             
         # Next check if desired channel is the source, if not switch it
@@ -437,10 +439,10 @@ class Keysight(Oscilloscope):
         # change.
         src = self._instQuery("MEASure:SOURce?")
         #print("Source: {}".format(src))
-        if (src != self.channel):
+        if (self._chanNumber(src) != self.channel):
             # Different channel so switch it
             #print("Switching to {}".format(self.channel))
-            self._instWrite("MEASure:SOURce {}".format(self.channel))
+            self._instWrite("MEASure:SOURce {}".format(self.channelStr(self.channel)))
 
         if (para):
             # Need to add parameters to the write and query strings
@@ -487,10 +489,16 @@ class Keysight(Oscilloscope):
 
         """
 
-        return self._measure("BRATe", channel=channel, wait=wait, install=install)
+        if (self._version > 2.60):
+            # NOTE: CDRRate requires "ANALyze:AEDGes ON". Not sure how that may impact other measurements
+            # NOTE: CDRRate also requires the source to be in the command even though we set MEASURE:SOURCE
+            self._instWrite("ANALyze:AEDGes ON")
+            return self._measure("CDRRate", channel=channel, wait=wait, install=install)
+        else:
+            return self._measure("BRATe", channel=channel, wait=wait, install=install)
 
     def measureBurstWidth(self, channel=None, wait=0.25, install=False):
-        """Measure and return the bit rate measurement.
+        """Measure and return the burst width measurement.
 
         This measurement is defined as: 'the width of the burst on the
         screen.'
@@ -506,7 +514,13 @@ class Keysight(Oscilloscope):
         install - if True, adds measurement to the statistics display
         """
 
-        return self._measure("BWIDth", channel=channel, wait=wait, install=install)
+        if (self._version > 2.60):
+            # BWIDth changed - now it is burst width within waveform, not just Screen edges
+            # must set an idle time - not sure what to set - setting 1 us for now
+            return self._measure("BWIDth", para="{},{}".format(self.channelStr(channel),'1e-6'),
+                                 channel=channel, wait=wait, install=install)
+        else:
+            return self._measure("BWIDth", channel=channel, wait=wait, install=install)
 
     def measureCounterFrequency(self, channel=None, wait=0.25, install=False):
         """Measure and return the counter frequency
@@ -529,7 +543,11 @@ class Keysight(Oscilloscope):
         # measurement will fail. Note doing the CLEAR, but if COUNTER
         # gets installed, this will fail until it gets manually CLEARed.
 
-        return self._measure("COUNter", channel=channel, wait=wait, install=False)
+        if (self._version > 2.60):
+            # This measurement does not exist for newer sw versions
+            return self.OverRange
+        else:
+            return self._measure("COUNter", channel=channel, wait=wait, install=False)
 
     def measurePosDutyCycle(self, channel=None, wait=0.25, install=False):
         """Measure and return the positive duty cycle
@@ -553,7 +571,12 @@ class Keysight(Oscilloscope):
         install - if True, adds measurement to the statistics display
         """
 
-        return self._measure("DUTYcycle", channel=channel, wait=wait, install=install)
+        if (self._version > 2.60):
+            # Must specify if Positive (Rising Edge to Rising Edge)
+            return self._measure("DUTYcycle", para="{},{}".format(self.channelStr(channel),'RISing'),
+                                 channel=channel, wait=wait, install=install)
+        else:
+            return self._measure("DUTYcycle", channel=channel, wait=wait, install=install)
 
     def measureFallTime(self, channel=None, wait=0.25, install=False):
         """Measure and return the fall time
@@ -648,7 +671,12 @@ class Keysight(Oscilloscope):
         install - if True, adds measurement to the statistics display
         """
 
-        return self._measure("NDUTy", channel=channel, wait=wait, install=install)
+        if (self._version > 2.60):
+            # Must specify if Negative (Falling Edge to Falling Edge)
+            return self._measure("DUTYcycle", para="{},{}".format(self.channelStr(channel),'FALLing'),
+                                 channel=channel, wait=wait, install=install)
+        else:
+            return self._measure("NDUTy", channel=channel, wait=wait, install=install)
 
     def measureFallEdgeCount(self, channel=None, wait=0.25, install=False):
         """Measure and return the on-screen falling edge count
@@ -667,7 +695,11 @@ class Keysight(Oscilloscope):
         install - if True, adds measurement to the statistics display
         """
 
-        return self._measure("NEDGes", channel=channel, wait=wait, install=install)
+        if (self._version > 2.60):
+            # This measurement does not exist for newer sw versions
+            return self.OverRange
+        else:
+            return self._measure("NEDGes", channel=channel, wait=wait, install=install)
 
     def measureFallPulseCount(self, channel=None, wait=0.25, install=False):
         """Measure and return the on-screen falling pulse count
@@ -807,7 +839,11 @@ class Keysight(Oscilloscope):
         install - if True, adds measurement to the statistics display
         """
 
-        return self._measure("PEDGes", channel=channel, wait=wait, install=install)
+        if (self._version > 2.60):
+            # This measurement does not exist for newer sw versions
+            return self.OverRange
+        else:
+            return self._measure("PEDGes", channel=channel, wait=wait, install=install)
 
     def measureRisePulseCount(self, channel=None, wait=0.25, install=False):
         """Measure and return the on-screen rising pulse count
@@ -942,7 +978,7 @@ class Keysight(Oscilloscope):
         install - if True, adds measurement to the statistics display
         """
 
-        return self._measure("VRMS", para="DISPlay", channel=channel, wait=wait, install=install)
+        return self._measure("VRMS", para="DISPlay,DC", channel=channel, wait=wait, install=install)
 
     def measureVoltBase(self, channel=None, wait=0.25, install=False):
         """Measure and return the Voltage base measurement.
@@ -1082,4 +1118,34 @@ class Keysight(Oscilloscope):
         'RMS - Full Screen': ['V', measureVoltRMS],
         }
 
+    def measureTblUnits(self, meas):
+        """Return units for measurement 'meas'
+
+        meas: a string to be looked up in _measureTbl to determine its units
+        """
+
+        try:
+            units = self._measureTbl[meas][0]
+        except KeyError:
+            # Could not find meas so return blank string
+            units = ''
+
+        return units
+
+    def measureTblCall(self, meas, channel=None):
+        """Call function to gather measurement 'meas' for channel and return its value
+
+        meas: a string to be looked up in _measureTbl to determine its units
+
+        channel: channel, as string, to be measured - default channel
+        for future readings
+        """
+
+        try:
+            value = self._measureTbl[meas][1](self, channel)
+        except KeyError:
+            # Could not find meas so return self.OverRange
+            value = self.OverRange
+
+        return value
     
