@@ -69,40 +69,96 @@ class Keysight(Oscilloscope):
         # the analog channels, POD1 for digital channels 0-7 or POD2 for
         # digital channels 8-15
         self._chanAllValidList = [self.channelStr(x) for x in range(1,self._max_chan+1)] + [str(x) for x in ['POD1','POD2']]
-        
+
+        # This will store annotation text if that feature is used
+        self._annotationText = ''
+        self._annotationColor = 'ch1' # default to Channel 1 color
+
         
     def annotate(self, text, color=None, background='TRAN'):
         """ Add an annotation with text, color and background to screen
 
             text - text of annotation. Can include \n for newlines (two characters)
 
-            color - string, one of {CH1 | CH2 | CH3 | CH4 | DIG | MATH | REF | MARK | WHIT | RED}
+            color - see annotateColor for possible strings
 
-            background - string, one of TRAN - transparent, OPAQue or INVerted
+            background - string, one of TRAN - transparent, OPAQue or INVerted (ignored unless sw version <= 2.60)
         """
 
-        if (color):
-            self.annotateColor(color)
+        # Save annotation text because may need it if change color
+        self._annotationText = text
 
-        # Add an annotation to the screen
-        self._instWrite("DISPlay:ANN:BACKground {}".format(background))   # transparent background - can also be OPAQue or INVerted
-        self._instWrite('DISPlay:ANN:TEXT "{}"'.format(text))
-        self._instWrite("DISPlay:ANN ON")
-
+        # Next, if <= 2.60, set color first. if > 2.60,
+        # annotateColor() also displays the annotation. Also handles
+        # case of color is None.
+        self.annotateColor(color)
+        
+        if (self._version <= 2.60):
+            # Legacy commands for annotations
+            #
+            # Add an annotation to the screen
+            self._instWrite("DISPlay:ANN:BACKground {}".format(background))   # transparent background - can also be OPAQue or INVerted
+            self._instWrite('DISPlay:ANN:TEXT "{}"'.format(text))
+            self._instWrite("DISPlay:ANN ON")
+            
+    ## Use to convert legacy color names
+    _colorNameOldtoNew = {
+        'ch1':    'CHAN1',
+        'ch2':    'CHAN2',
+        'ch3':    'CHAN3',
+        'ch4':    'CHAN4',
+        'ch5':    'CHAN5',
+        'ch6':    'CHAN6',
+        'ch7':    'CHAN7',
+        'ch8':    'CHAN8',
+        'dig':    'DCH',
+        'math':   'FUNC1',
+        'ref':    'WMEM',
+        'marker': 'MARK',
+        'white':  'FUNC14',         # closest match
+        'red':    'FUNC12'          # no good match
+    }
+            
     def annotateColor(self, color):
         """ Change screen annotation color """
 
-        ## NOTE: Only certain values are allowed:
+        ## NOTE: Only certain values are allowed. These are legacy names (<= 2.60)
         # {CH1 | CH2 | CH3 | CH4 | DIG | MATH | REF | MARK | WHIT | RED}
         #
         # The scope will respond with an error if an invalid color string is passed along
-        self._instWrite("DISPlay:ANN:COLor {}".format(color))
+        #
+        # If > 2.60, will translate color names
+        
+        if (self._version > 2.60):
+            if (color is not None):
+                # save color
+                self._annotationColor = color
+
+            # Place Bookmark in top left of grid
+            self._instWrite("DISPlay:BOOKmark1:XPOSition 0.015")
+            self._instWrite("DISPlay:BOOKmark1:YPOSition 0.06")
+
+            #@@@#print("Current Location of Bookmark 1: {},{}".format(
+            #@@@#    self._instQuery("DISPlay:BOOKmark1:XPOSition?"), self._instQuery("DISPlay:BOOKmark1:YPOSition?")))
+            
+            # Always use the first Bookmark to implement similar annotation to 3000 series
+            self._instWrite('DISPlay:BOOKmark1:SET NONE,\"{}\",{},\"{}\"'.format(
+                self._annotationText,
+                self._colorNameOldtoNew[self._annotationColor],
+                self._annotationText))
+            
+        elif (color is not None):
+            # If legacy and color is None, ignore
+            self._instWrite("DISPlay:ANN:COLor {}".format(color))
 
     def annotateOff(self):
         """ Turn off screen annotation """
 
-        self._instWrite("DISPlay:ANN OFF")
-
+        if (self._version > 2.60):
+            self._instWrite("DISPlay:BOOKmark1:DELete")
+        else:
+            self._instWrite("DISPlay:ANN OFF")
+        
 
     def channelLabel(self, label, channel=None):
         """ Add a label to selected channel (or default one if None)
@@ -226,11 +282,10 @@ class Keysight(Oscilloscope):
             raise ValueError('INVALID Channel Value for DVM: {}  SKIPPING!'.format(self.channel))
             
         # First check if DVM is enabled
-        en = self._instQuery("DVM:ENABle?")
-        if (not self._1OR0(en)):
+        if (not self.DVMisEnabled()):
             # It is not enabled, so enable it
-            self._instWrite("DVM:ENABLE ON")
-
+            self.enableDVM(True)
+            
         # Next check if desired DVM channel is the source, if not switch it
         #
         # NOTE: doing it this way so as to not possibly break the
@@ -270,6 +325,24 @@ class Keysight(Oscilloscope):
 
         return val
 
+    def DVMisEnabled(self):
+        """Return True is DVM is enabled, else False"""
+
+        en = self._instQuery("DVM:ENABle?")
+        return self._1OR0(en)
+
+    def enableDVM(self, enable=True):
+        """Enable or Disable DVM
+
+        enable: If True, Enable (turn on) DVM mode, else Disable (turn off) DVM mode
+        """
+
+        if (enable):
+            self._instWrite("DVM:ENABLE ON")
+        else:
+            self._instWrite("DVM:ENABLE OFF")
+
+        
     def measureDVMacrms(self, channel=None, timeout=None, wait=0.5):
         """Measure and return the AC RMS reading of channel using DVM
         mode.

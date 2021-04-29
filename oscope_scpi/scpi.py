@@ -73,6 +73,9 @@ class SCPI(object):
         self._read_termination = read_termination
         self._write_termination = write_termination
         self._timeout = timeout
+        self._IDNmanu = ''      # store manufacturer from IDN here
+        self._IDNmodel = ''     # store instrument model number from IDN here
+        self._IDNserial = ''    # store instrument serial number from IDN here
         self._version = 0.0     # set software versino to lowest value until it gets set
         self._inst = None
 
@@ -89,10 +92,11 @@ class SCPI(object):
         # NOTE: must use pyvisa-py >= 0.5.0 to get this implementation
         self._inst.clear()
 
-        # Read software version number so can deviate operation based
-        # on changes to commands over history (WHY did they make changes?)
-        # MUST be done before below clear() which sends first command.
-        self._getVersion()
+        # Read ID to gather items like software version number so can
+        # deviate operation based on changes to commands over history
+        # (WHY did they make changes?)  MUST be done before below
+        # clear() which sends first command.
+        self._getID()
 
         # Also, send a *CLS system command to clear the command
         # handler (error queues and such)
@@ -337,14 +341,19 @@ class SCPI(object):
         self.checkInstErrors(writeStr)
         return result
 
-    def _getVersion(self):
-        """Query Software Version to handle command history deviations. This is called from open()."""
+    def _getID(self):
+        """Query IDN data like Software Version to handle command history deviations. This is called from open()."""
         ## Skip Error check since handling of errors is version specific
         idn = self._instQuery('*IDN?', checkErrors=False).split(',')
+        
+        self._IDNmanu = idn[0]   # store manufacturer from IDN here
+        self._IDNmodel = idn[1]  # store instrument model number from IDN here
+        self._IDNserial = idn[2] # store instrument serial number from IDN here
+
         ver = idn[3].split('.')
         # put major and minor version into floating point format so can numerically compare
         self._version = float(ver[0]+'.'+ver[1])
-
+        
     def idn(self):
         """Return response to *IDN? message"""
         return self._instQuery('*IDN?')

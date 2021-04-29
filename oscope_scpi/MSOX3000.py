@@ -47,16 +47,6 @@ class MSOX3000(Keysight):
 
     maxChannel = 4
 
-    # Return list of ALL valid channel strings.
-    #
-    # NOTE: Currently, only valid values are a numerical string for
-    # the analog channels, POD1 for digital channels 0-7 or POD2 for
-    # digital channels 8-15
-    chanAllValidList = [str(x) for x in range(1,maxChannel+1)]+['POD1','POD2']
-        
-    # Return list of valid analog channel strings.
-    chanAnaValidList = [str(x) for x in range(1,maxChannel+1)]
-
     def __init__(self, resource, wait=0):
         """Init the class with the instruments resource string
 
@@ -86,7 +76,7 @@ class MSOX3000(Keysight):
         chanstr = ''
         for chan in chanlist:                        
             # Check channel value
-            if (chan not in MSOX3000.chanAllValidList):
+            if (chan not in self.chanAllValidList):
                 raise ValueError('INVALID Channel Value for AUTOSCALE: {}  SKIPPING!'.format(chan))
             else:
                 chanstr += ',' + self.channelStr(chan)
@@ -214,7 +204,7 @@ class MSOX3000(Keysight):
             raise ValueError('Channel cannot be a list for WAVEFORM!')
 
         # Check channel value
-        if (self.channel not in MSOX3000.chanAllValidList):
+        if (self.channel not in self.chanAllValidList):
             raise ValueError('INVALID Channel Value for WAVEFORM: {}  SKIPPING!'.format(self.channel))            
             
         if self.channel.upper().startswith('POD'):

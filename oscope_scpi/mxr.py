@@ -107,16 +107,6 @@ class MXR058A(MXR):
 
     maxChannel = 8
 
-    # Return list of ALL valid channel strings.
-    #
-    # NOTE: Currently, only valid values are a numerical string for
-    # the analog channels, POD1 for digital channels 0-7 or POD2 for
-    # digital channels 8-15
-    chanAllValidList = [str(x) for x in range(1,maxChannel+1)]+['POD1','POD2']
-        
-    # Return list of valid analog channel strings.
-    chanAnaValidList = [str(x) for x in range(1,maxChannel+1)]
-
     def __init__(self, resource, wait=0):
         """Init the class with the instruments resource string
 

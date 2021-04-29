@@ -84,7 +84,14 @@ class Oscilloscope(SCPI):
         # digital channels 8-15
         self._chanAllValidList = self._chanAnaValidList + [str(x) for x in ['POD1','POD2']]
         
-        
+    @property
+    def chanAnaValidList(self):
+        return self._chanAnaValidList
+
+    @property
+    def chanAllValidList(self):
+        return self._chanAllValidList
+    
     # =========================================================
     # Based on the save oscilloscope setup example from the MSO-X 3000 Programming
     # Guide and modified to work within this class ...
