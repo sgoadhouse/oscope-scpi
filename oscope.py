@@ -49,6 +49,13 @@ import sys
 import argparse
 
 from datetime import datetime
+
+# matplotlib.pyplot is needed for plotting waveform data to screen
+# (very convenient). If do not want to install this very useful Python
+# package, then remove this import and search for 'plt.' below and
+# remove the plotting code.
+import matplotlib.pyplot as plt
+
 #@@@#from oscope_scpi import MSOX3000
 from oscope_scpi import MXR058A
 
@@ -288,8 +295,28 @@ def main():
                 channel = nxt[0]
                 #@@@#if (channel in MSOX3000.chanAllValidList):
                 if (channel in scope.chanAllValidList):
+
+                    #@@@ Remove points once get things working
+                    #(x, y, meta) = scope.waveformData(channel, points=10000)
+                    (x, y, meta) = scope.waveformData(channel)
+
+                    # Plot receive data to screen so user can see what they got before saving the file
+                    if True:
+                        print("Close the plot window to continue...")
+                        fig, (ax1, ax2) = plt.subplots(1, 2)
+                        ax1.plot(x, y)      # plot the data
+                        ax1.set_title('Waveform Data')
+            
+                        # plot a histogram of the data
+                        num_bins = 250
+                        n, bins, patches = ax2.hist(y, num_bins)
+                        ax2.set_title('Histogram of Waveform Data')
+            
+                        fig.tight_layout()
+                        plt.show()
+                    
                     fn = handleFilename(nxt[1], 'csv')
-                    dataLen = scope.waveform(fn, channel)
+                    dataLen = scope.waveformSaveCSV(fn, (x, y, meta), channel)
                     print("Waveform Output of Channel {} in {} points to file {}".format(channel,dataLen,fn))
                 else:
                     print('INVALID Channel Value: {}  SKIPPING!'.format(channel))

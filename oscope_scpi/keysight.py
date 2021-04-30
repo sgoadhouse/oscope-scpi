@@ -41,6 +41,8 @@ from datetime import datetime
 from quantiphy import Quantity
 from sys import version_info
 import pyvisa as visa
+import numpy as np
+import csv
 
 class Keysight(Oscilloscope):
     """Child class of Oscilloscope for controlling and accessing a HP/Agilent/Keysight Oscilloscope with PyVISA and SCPI commands"""
@@ -242,14 +244,350 @@ class Keysight(Oscilloscope):
 
 
     # =========================================================
+    # Based on the Waveform data download example from the Keysight
+    # Infiniium MXR/EXR-Series Oscilloscope Programmer's Guide and
+    # modified to work within this class ...
+    # =========================================================
+    def _waveformDataNew(self, channel, points=None):
+
+        DEBUG = True
+        import struct
+        
+        # Download waveform data.
+        # --------------------------------------------------------
+
+        # Create array for meta data
+        meta = []
+        
+        # Set the waveform source.
+        self._instWrite("WAVeform:SOURce {}".format(self.channelStr(channel)))
+        wav_source = self._instQuery("WAVeform:SOURce?")
+
+        # Get the waveform view.
+        wav_view = self._instQuery("WAVeform:VIEW?")
+        
+        # Choose the format of the data returned:
+        #@@@# Look into using WORD Format #@@@@@#
+        self._instWrite("WAVeform:FORMat BYTE")
+        
+        # Display the waveform settings from preamble:
+        wav_form_dict = {
+            0 : "ASCii",
+            1 : "BYTE",
+            2 : "WORD",
+            3 : "LONG",
+            4 : "LONGLONG",
+            5 : "FLOat",
+        }
+        acq_type_dict = {
+            1 : "RAW",
+            2 : "AVERage",
+            3 : "VHIStogram",
+            4 : "HHIStogram",
+            6 : "INTerpolate",
+            9 : "DIGITAL",
+            10 : "PDETect",
+        }
+        acq_mode_dict = {
+            0 : "RTIMe",
+            1 : "ETIMe",
+            2 : "SEGMented",
+            3 : "PDETect",
+        }
+        coupling_dict = {
+            0 : "AC",
+            1 : "DC",
+            2 : "DCFIFTY",
+            3 : "LFREJECT",
+        }
+        units_dict = {
+            0 : "UNKNOWN",
+            1 : "VOLT",
+            2 : "SECOND",
+            3 : "CONSTANT",
+            4 : "AMP",
+            5 : "DECIBEL",
+        }
+
+        preamble_string = self._instQuery("WAVeform:PREamble?")
+        (wav_form, acq_type, wfmpts, avgcnt, x_increment, x_origin,
+         x_reference, y_increment, y_origin, y_reference, coupling,
+         x_display_range, x_display_origin, y_display_range,
+         y_display_origin, date, time, frame_model, acq_mode,
+         completion, x_units, y_units, max_bw_limit, min_bw_limit
+        ) = preamble_string.split(",")
+
+        meta.append(("Date","{}".format(date)))
+        meta.append(("Time","{}".format(time)))
+        meta.append(("Frame model #","{}".format(frame_model)))
+        meta.append(("Waveform source","{}".format(wav_source)))
+        meta.append(("Waveform view","{}".format(wav_view)))
+        meta.append(("Waveform format","{}".format(wav_form_dict[int(wav_form)])))
+        meta.append(("Acquire mode","{}".format(acq_mode_dict[int(acq_mode)])))
+        meta.append(("Acquire type","{}".format(acq_type_dict[int(acq_type)])))
+        meta.append(("Coupling","{}".format(coupling_dict[int(coupling)])))
+        meta.append(("Waveform points available","{}".format(wfmpts)))
+        meta.append(("Waveform average count","{}".format(avgcnt)))
+        meta.append(("Waveform X increment","{}".format(x_increment)))
+        meta.append(("Waveform X origin","{}".format(x_origin)))
+        meta.append(("Waveform X reference","{}".format(x_reference))) # Always 0.
+        meta.append(("Waveform Y increment","{}".format(y_increment)))
+        meta.append(("Waveform Y origin","{}".format(y_origin)))
+        meta.append(("Waveform Y reference","{}".format(y_reference))) # Always 0.
+        meta.append(("Waveform X display range","{}".format(x_display_range)))
+        meta.append(("Waveform X display origin","{}".format(x_display_origin)))
+        meta.append(("Waveform Y display range","{}".format(y_display_range)))
+        meta.append(("Waveform Y display origin","{}".format(y_display_origin)))
+        meta.append(("Waveform X units","{}".format(units_dict[int(x_units)])))
+        meta.append(("Waveform Y units","{}".format(units_dict[int(y_units)])))
+        meta.append(("Max BW limit","{}".format(max_bw_limit)))
+        meta.append(("Min BW limit","{}".format(min_bw_limit)))
+        meta.append(("Completion pct","{}".format(completion)))
+        
+        # Convert some of the preamble to numeric values for later calculations.
+        #
+        # NOTE: These are already gathered from PREamble above but s
+        #
+        x_increment = float(x_increment)
+        x_origin    = float(x_origin)
+        y_increment = float(y_increment)
+        y_origin    = float(y_origin)
+        x_display_range  = float(x_display_range)
+        x_display_origin = float(x_display_origin)
+
+        # Get the waveform data.
+        pts = ''
+        if (points is not None):
+            # If want subset of points, grab them from the center of display
+            midpt = int((((x_display_range / 2) + x_display_origin) - x_origin) / x_increment)
+            start = midpt - (points // 2)
+            pts = ' {},{}'.format(start,points)
+            
+        self._instWrite("WAVeform:STReaming OFF")
+        sData = self._instQueryIEEEBlock("WAVeform:DATA?"+pts)
+
+        if (DEBUG):
+            # Wait until after data transfer to output meta data so
+            # that the preamble data is captured as close to the data
+            # as possible.
+            for mm in meta:
+                print("{:>27}: {}".format(mm[0],mm[1]))
+            print()
+        
+        # Unpack signed byte data.
+        values = np.array(struct.unpack("%db" % len(sData), sData))
+        nLength = len(values)
+        meta.append(("Number of data values","{:d}".format(nLength)))
+
+        # If the acquire type is HHIStogram or VHIStogram, the x data
+        # needs to just be an incrementing count.
+        #
+        # @@@ Not yet sure how to convert this into bins
+        if (acq_type == 3 or acq_type == 4):
+            # create an array of an incrementing count for nLength
+            x = np.arange(nLength)
+        else:
+            # otherwise, time-base data so create an array of time values
+            x = (np.arange(nLength) * x_increment) + x_origin
+            
+        # If the acquire type is DIGITAL, the y data
+        # does not need to be converted to an analog value
+        if (acq_type == 9):
+            y = values      # no conversion needed
+        else:
+            # create an array of vertical data (typ. Voltages)
+            y = (values * y_increment) + y_origin
+
+        # Return the data in numpy arrays along with the meta data
+        return (x, y, meta)
+        
+    # =========================================================
     # Based on the Waveform data download example from the MSO-X 3000 Programming
     # Guide and modified to work within this class ...
     # =========================================================
-    def waveform(self, filename, channel=None, points=None):
-        """ Download the Waveform Data of a particular Channel and saved to the given filename as a CSV file. """
+    def _waveformDataLegacy(self, channel, points=None):
+        """ Download the Waveform Data of a particular Channel and return it. """
 
-        DEBUG = False
-        import csv
+        DEBUG = True
+            
+        # Download waveform data.
+        # --------------------------------------------------------
+
+        # Set the waveform points mode.
+        self._instWrite("WAVeform:POINts:MODE MAX")
+        wav_points_mode = self._instQuery("WAVeform:POINts:MODE?")
+
+        # Set the number of waveform points to fetch, if it was passed in.
+        #
+        # NOTE: With this Legacy software, this decimated the data so
+        # that you would still get a display's worth but not every
+        # single time bucket. This works differently for the newer
+        # software where above points picks the number of points in
+        # the center of the display to send but every consecutive time
+        # bucket is sent.
+        if (points is not None):
+            self._instWrite("WAVeform:POINts {}".format(points))
+            wav_points = self._instQuery("WAVeform:POINts?")
+
+        # Create array for meta data
+        meta = []
+
+        # Set the waveform source.
+        self._instWrite("WAVeform:SOURce {}".format(self.channelStr(channel)))
+        wav_source = self._instQuery("WAVeform:SOURce?")
+
+        # Get the waveform view.
+        wav_view = self._instQuery("WAVeform:VIEW?")
+        
+        # Choose the format of the data returned:
+        self._instWrite("WAVeform:FORMat BYTE")
+
+        # Display the waveform settings from preamble:
+        wav_form_dict = {
+            0 : "BYTE",
+            1 : "WORD",
+            4 : "ASCii",
+        }
+
+        acq_type_dict = {
+            0 : "NORMal",
+            1 : "PEAK",
+            2 : "AVERage",
+            3 : "HRESolution",
+        }
+
+        (
+            wav_form_f,
+            acq_type_f,
+            wfmpts_f,
+            avgcnt_f,
+            x_increment,
+            x_origin,
+            x_reference_f,
+            y_increment,
+            y_origin,
+            y_reference_f
+        ) = self._instQueryNumbers("WAVeform:PREamble?")
+
+        ## convert the numbers that are meant to be integers
+        (
+            wav_form,
+            acq_type,
+            wfmpts,
+            avgcnt,
+            x_reference,
+            y_reference
+        ) = list(map(int,         (
+            wav_form_f,
+            acq_type_f,
+            wfmpts_f,
+            avgcnt_f,
+            x_reference_f,
+            y_reference_f
+        )))
+
+
+        meta.append(("Waveform source","{}".format(wav_source)))
+        meta.append(("Waveform view","{}".format(wav_view)))
+        meta.append(("Waveform format","{}".format(wav_form_dict[int(wav_form)])))
+        meta.append(("Acquire type","{}".format(acq_type_dict[int(acq_type)])))
+        meta.append(("Waveform points mode","{}".format(wav_points_mode)))
+        meta.append(("Waveform points available","{}".format(wav_points)))
+        meta.append(("Waveform points desired","{:d}".format((wfmpts))))
+        meta.append(("Waveform average count","{:d}".format(avgcnt)))
+        meta.append(("Waveform X increment","{:1.12f}".format(x_increment)))
+        meta.append(("Waveform X origin","{:1.9f}".format(x_origin)))
+        meta.append(("Waveform X reference","{:d}".format(x_reference))) # Always 0.
+        meta.append(("Waveform Y increment","{:f}".format(y_increment)))
+        meta.append(("Waveform Y origin","{:f}".format(y_origin)))
+        meta.append(("Waveform Y reference","{:d}".format(y_reference))) # Always 125.
+        
+        # Convert some of the preamble to numeric values for later calculations.
+        #
+        # NOTE: These are already gathered from PREamble above but s
+        #
+        x_increment = float(x_increment)
+        x_origin    = float(x_origin)
+        y_increment = float(y_increment)
+        y_origin    = float(y_origin)
+        y_reference = float(y_reference)
+
+        # Get the waveform data.
+        waveform_data = self._instQueryIEEEBlock("WAVeform:DATA?")
+
+        if (DEBUG):
+            # Wait until after data transfer to output meta data so
+            # that the preamble data is captured as close to the data
+            # as possible.
+            for mm in meta:
+                print("{:>27}: {}".format(mm[0],mm[1]))
+            print()
+        
+        if (version_info < (3,)):
+            ## If PYTHON 2, waveform_data will be a string and needs to be converted into a list of integers
+            values = np.array([ord(x) for x in waveform_data])
+        else:
+            ## If PYTHON 3, waveform_data is already in the correct format
+            values = np.array(waveform_data)
+
+        nLength = len(values)
+        meta.append(("Number of data values","{:d}".format(nLength)))
+
+        # create an array of time values
+        x = (np.arange(nLength) * x_increment) + x_origin
+
+        # If the channel name starts with POD or BUS, then data is not
+        # analog and does not need to be converted
+        if (channel.startswith('POD') or channel.startswith('BUS')):
+            y = values      # no conversion needed
+        else:
+            # create an array of vertical data (typ. Voltages)
+            y = ((values - y_reference) * y_increment) + y_origin
+        
+        # Return the data in numpy arrays along with the meta data
+        return (x, y, meta)
+
+    def waveformData(self, channel=None, points=None):
+        """ Download waveform data of a selected channel
+
+        channel  - channel, as string, to be measured - set to None to use the default channel
+
+        points   - number of points to capture - if None, captures all available points
+                   for newer devices, the captured points are centered around the center of the display
+
+        """
+        
+        # If a channel value is passed in, make it the
+        # current channel
+        if channel is not None and type(channel) is not list:
+            self.channel = channel
+
+        # Make sure channel is NOT a list
+        if type(self.channel) is list or type(channel) is list:
+            raise ValueError('Channel cannot be a list for WAVEFORM!')
+
+        # Check channel value
+        if (self.channel not in self.chanAllValidList):
+            raise ValueError('INVALID Channel Value for WAVEFORM: {}  SKIPPING!'.format(self.channel))            
+
+        
+        if (self._version > 2.60):
+            (x, y, meta) = self._waveformDataNew(self.channel, points)
+        else:
+            (x, y, meta) = self._waveformDataLegacy(self.channel, points)        
+
+        return (x, y, meta)
+        
+
+    def waveformSaveCSV(self, filename, data, channel=None):
+        """
+        filename - base filename to store the data
+
+        data     - data to write: expected to be a list of (x, y, meta) but can just be (x, y)
+
+        channel  - channel, as string, to be measured - set to None to use the default channel
+
+        """
 
         # If a channel value is passed in, make it the
         # current channel
@@ -263,138 +601,91 @@ class Keysight(Oscilloscope):
         # Check channel value
         if (self.channel not in self.chanAllValidList):
             raise ValueError('INVALID Channel Value for WAVEFORM: {}  SKIPPING!'.format(self.channel))            
-            
+
+        # Allow data to be either (x, y) or (x, y, meta)
+        if (len(data) == 2):
+            (x, y) = data
+            meta = []
+        else:
+            (x, y, meta) = data
+        
+        nLength = len(y)
+
+        # The reason we need channel passed in is so can check if a
+        # Digital POD and if so handle the y data differently.
         if self.channel.upper().startswith('POD'):
             pod = int(self.channel[-1])
         else:
             pod = None
+        
+        print('Writing data to CSV file. Please wait...')
+        
+        # Save waveform data values to CSV file.
+        #f = open("waveform_data.csv", "w")
+        #for i in range(0, nLength):
+        #    f.write("%E, %f\n" % (x[i], y[i]))
 
-        # Download waveform data.
-        # Set the waveform points mode.
-        self._instWrite("WAVeform:POINts:MODE MAX")
-        if DEBUG:
-            qresult = self._instQuery("WAVeform:POINts:MODE?")
-            print( "Waveform points mode: {}".format(qresult) )
-
-        # Set the number of waveform points to fetch, if it was passed in
-        if (points is not None):
-            self._instWrite("WAVeform:POINts {}".format(points))
-            if DEBUG:
-                qresult = self._instQuery("WAVeform:POINts?")
-                print( "Waveform points available: {}".format(qresult) )
-
-        # Set the waveform source.
-        self._instWrite("WAVeform:SOURce {}".format(self.channelStr(self.channel)))
-        if DEBUG:
-            qresult = self._instQuery("WAVeform:SOURce?")
-            print( "Waveform source: {}".format(qresult) )
-
-        # Choose the format of the data returned:
-        self._instWrite("WAVeform:FORMat BYTE")
-        if DEBUG:
-            print( "Waveform format: {}".format(self._instQuery("WAVeform:FORMat?")) )
-
-        if DEBUG:
-            # Display the waveform settings from preamble:
-            wav_form_dict = {
-                0 : "BYTE",
-                1 : "WORD",
-                4 : "ASCii", }
-
-            acq_type_dict = {
-                0 : "NORMal",
-                1 : "PEAK",
-                2 : "AVERage",
-                3 : "HRESolution",
-            }
-
-            (
-                wav_form_f,
-                acq_type_f,
-                wfmpts_f,
-                avgcnt_f,
-                x_increment,
-                x_origin,
-                x_reference_f,
-                y_increment,
-                y_origin,
-                y_reference_f
-            ) = self._instQueryNumbers("WAVeform:PREamble?")
-
-            ## convert the numbers that are meant to be integers
-            (
-                wav_form,
-                acq_type,
-                wfmpts,
-                avgcnt,
-                x_reference,
-                y_reference
-            ) = list(map(int,         (
-                wav_form_f,
-                acq_type_f,
-                wfmpts_f,
-                avgcnt_f,
-                x_reference_f,
-                y_reference_f
-            )))
-
-
-            print( "Waveform format: {}".format(wav_form_dict[(wav_form)]) )
-            print( "Acquire type: {}".format(acq_type_dict[(acq_type)]) )
-            print( "Waveform points desired: {:d}".format((wfmpts)) )
-            print( "Waveform average count: {:d}".format((avgcnt)) )
-            print( "Waveform X increment: {:1.12f}".format(x_increment) )
-            print( "Waveform X origin: {:1.9f}".format(x_origin) )
-            print( "Waveform X reference: {:d}".format((x_reference)) ) # Always 0.
-            print( "Waveform Y increment: {:f}".format(y_increment) )
-            print( "Waveform Y origin: {:f}".format(y_origin) )
-            print( "Waveform Y reference: {:d}".format((y_reference)) ) # Always 125.
-
-        # Get numeric values for later calculations.
-        x_increment = self._instQueryNumber("WAVeform:XINCrement?")
-        x_origin = self._instQueryNumber("WAVeform:XORigin?")
-        y_increment = self._instQueryNumber("WAVeform:YINCrement?")
-        y_origin = self._instQueryNumber("WAVeform:YORigin?")
-        y_reference = self._instQueryNumber("WAVeform:YREFerence?")
-
-        # Get the waveform data.
-        waveform_data = self._instQueryIEEEBlock("WAVeform:DATA?")
-
-        if (version_info < (3,)):
-            ## If PYTHON 2, waveform_data will be a string and needs to be converted into a list of integers
-            data_bytes = [ord(x) for x in waveform_data]
-        else:
-            ## If PYTHON 3, waveform_data is already in the correct format
-            data_bytes = waveform_data
-
-        nLength = len(data_bytes)
-        if (DEBUG):
-            print( "Number of data values: {:d}".format(nLength) )
-
-        # Open file for output.
+        #f.close()
+        #print("Waveform format BYTE data written to waveform_data.csv.")
+        
+        # Open file for output. Only output x & y for simplicity. User
+        # will have to copy paste the meta data printed to the
+        # terminal
         myFile = open(filename, 'w')
         with myFile:
             writer = csv.writer(myFile, dialect='excel', quoting=csv.QUOTE_NONNUMERIC)
             if pod:
                 writer.writerow(['Time (s)'] + ['D{}'.format((pod-1) * 8 + ch) for ch in range(8)])
             else:
+                #@@@#writer.writerow(['Time (s)', 'Voltage (V)', 'Preamble Element', 'Preamble Value'])
                 writer.writerow(['Time (s)', 'Voltage (V)'])
 
             # Output waveform data in CSV format.
-            for i in range(0, nLength - 1):
-                time_val = x_origin + (i * x_increment)
+            #@@@
+            #for i in range(0, nLength):
+            #    if pod:
+            #        writer.writerow([x[i]] + [(y[i] >> ch) & 1 for ch in range(8)])
+            #    else:
+            #        writer.writerow([x[i], y[i]])
+
+            for dat in zip(x,y):
                 if pod:
-                    writer.writerow([time_val] + [(data_bytes[i] >> ch) & 1 for ch in range(8)])
+                    writer.writerow([dat[0]] + [(dat[1] >> ch) & 1 for ch in range(8)])
                 else:
-                    voltage = (data_bytes[i] - y_reference) * y_increment + y_origin
-                    writer.writerow([time_val, voltage])
-
-        if (DEBUG):
-            print( "Waveform format BYTE data written to {}.".format(filename) )
-
+                    writer.writerow(dat)
+                    
         # return number of entries written
         return nLength
+        
+    def waveform(self, filename, channel=None, points=None):
+        """Download waveform data of a selected channel into a csv file.
 
+        NOTE: This is a LEGACY function to prevent breaking API but it
+        is deprecated so use above waveform functions instead.
+
+        NOTE: Now that newer oscilloscopes have very large data
+        downloads, csv file format is not a good format for storing
+        because the files are so large that the convenience of csv
+        files has diminishing returns. They are too large for Excel to
+        load and are only useful from a scripting system like Python
+        or MATLAB or Root. See waveformSaveNPY() for a better option.
+
+        filename - base filename to store the data
+
+        channel  - channel, as string, to be measured - set to None to use the default channel
+
+        points   - number of points to capture - if None, captures all available points
+                   for newer devices, the captured points are centered around the center of the display
+
+        """
+
+        # Acquire the data (also sets self.channel)
+        (x, y, meta) = self.waveformData(channel, points)
+
+        # Save to CSV file
+        return self.waveformSaveCSV(filename, (x, y, meta), channel)
+    
+    
     def polish(self, value, measure=None):
         """ Using the QuantiPhy package, return a value that is in apparopriate Si units.
 
