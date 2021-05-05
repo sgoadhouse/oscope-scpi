@@ -44,11 +44,12 @@ from time import sleep
 from datetime import datetime
 from sys import version_info
 import numpy as np
+import struct
 
 class Keysight(Oscilloscope):
     """Child class of Oscilloscope for controlling and accessing a HP/Agilent/Keysight Oscilloscope with PyVISA and SCPI commands"""
 
-    def __init__(self, resource, maxChannel, wait=0):
+    def __init__(self, resource, maxChannel=2, wait=0):
         """Init the class with the instruments resource string
 
         resource   - resource string or VISA descriptor, like TCPIP0::172.16.2.13::INSTR
@@ -275,7 +276,6 @@ class Keysight(Oscilloscope):
         """ Download the Waveform Data of a particular Channel and return it. """
 
         DEBUG = True
-        import struct
         
         # Download waveform data.
         # --------------------------------------------------------
@@ -401,7 +401,7 @@ class Keysight(Oscilloscope):
             print()
         
         # Unpack signed byte data.
-        values = np.array(struct.unpack("%db" % len(sData), sData))
+        values = np.array(struct.unpack("%db" % len(sData), sData), dtype=np.int8)
         nLength = len(values)
         meta.append(("Number of data values","{:d}".format(nLength)))
 
@@ -465,6 +465,22 @@ class Keysight(Oscilloscope):
         # Download waveform data.
         # --------------------------------------------------------
 
+        # Create array for meta data
+        meta = []
+
+        # Set the waveform source.
+        self._instWrite("WAVeform:SOURce {}".format(self.channelStr(channel)))
+        wav_source = self._instQuery("WAVeform:SOURce?")
+
+        # Get the waveform view.
+        wav_view = self._instQuery("WAVeform:VIEW?")
+        
+        # Choose the format of the data returned:
+        self._instWrite("WAVeform:FORMat BYTE")
+
+        # Set to Unsigned data which is compatible with PODx and BUSx channels
+        self._instWrite("WAVeform:UNSigned ON")
+
         # Set the waveform points mode.
         self._instWrite("WAVeform:POINts:MODE MAX")
         wav_points_mode = self._instQuery("WAVeform:POINts:MODE?")
@@ -479,20 +495,7 @@ class Keysight(Oscilloscope):
         # bucket is sent.
         if (points is not None):
             self._instWrite("WAVeform:POINts {}".format(points))
-            wav_points = self._instQuery("WAVeform:POINts?")
-
-        # Create array for meta data
-        meta = []
-
-        # Set the waveform source.
-        self._instWrite("WAVeform:SOURce {}".format(self.channelStr(channel)))
-        wav_source = self._instQuery("WAVeform:SOURce?")
-
-        # Get the waveform view.
-        wav_view = self._instQuery("WAVeform:VIEW?")
-        
-        # Choose the format of the data returned:
-        self._instWrite("WAVeform:FORMat BYTE")
+        wav_points = int(self._instQuery("WAVeform:POINts?"))
 
         # Display the waveform settings from preamble:
         wav_form_dict = {
@@ -552,7 +555,7 @@ class Keysight(Oscilloscope):
         meta.append(("Waveform X reference","{:d}".format(x_reference))) # Always 0.
         meta.append(("Waveform Y increment","{:f}".format(y_increment)))
         meta.append(("Waveform Y origin","{:f}".format(y_origin)))
-        meta.append(("Waveform Y reference","{:d}".format(y_reference))) # Always 125.
+        meta.append(("Waveform Y reference","{:d}".format(y_reference))) # Always 128 with UNSIGNED
         
         # Convert some of the preamble to numeric values for later calculations.
         #
@@ -563,10 +566,9 @@ class Keysight(Oscilloscope):
         x_origin    = float(x_origin)
         y_increment = float(y_increment)
         y_origin    = float(y_origin)
-        y_reference = float(y_reference)
 
         # Get the waveform data.
-        waveform_data = self._instQueryIEEEBlock("WAVeform:DATA?")
+        sData = self._instQueryIEEEBlock("WAVeform:DATA?")
 
         if (DEBUG):
             # Wait until after data transfer to output meta data so
@@ -577,17 +579,20 @@ class Keysight(Oscilloscope):
             print()
         
         if (version_info < (3,)):
-            ## If PYTHON 2, waveform_data will be a string and needs to be converted into a list of integers
-            values = np.array([ord(x) for x in waveform_data])
+            ## If PYTHON 2, sData will be a string and needs to be converted into a list of integers
+            #
+            # NOTE: not sure if this still works - besides PYTHON2 support is deprecated
+            values = np.array([ord(x) for x in sData], dtype=np.int8)
         else:
-            ## If PYTHON 3, waveform_data is already in the correct format
-            values = np.array(waveform_data)
+            ## If PYTHON 3, 
+            # Unpack unsigned byte data and store in int16 so room to convert unsigned to signed
+            values = np.array(struct.unpack("%dB" % len(sData), sData), dtype=np.int16)
 
         nLength = len(values)
         meta.append(("Number of data values","{:d}".format(nLength)))
 
         # create an array of time values
-        x = (np.arange(nLength) * x_increment) + x_origin
+        x = ((np.arange(nLength) - x_reference) * x_increment) + x_origin
 
         if (channel.startswith('BUS')):
             # If the channel name starts with BUS, then data is not
