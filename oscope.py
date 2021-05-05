@@ -26,12 +26,12 @@
 # EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #-------------------------------------------------------------------------------
-#  Handle several remote functions of Agilent/KeySight MSO3034A scope
+#  Handle several remote functions of Agilent/KeySight oscilloscopes
 #
-# Using my new MSOX3000 Class
-
-# pyvisa 1.6 (or higher) (http://pyvisa.sourceforge.net/)
-# pyvisa-py 0.2 (https://pyvisa-py.readthedocs.io/en/latest/)
+# Using my new oscope_scpi Class
+#
+# pyvisa 1.11.3 (or higher) (http://pyvisa.sourceforge.net/)
+# pyvisa-py 0.5.1 (or higher) (https://pyvisa-py.readthedocs.io/en/latest/)
 #
 # NOTE: pyvisa-py replaces the need to install NI VISA libraries
 # (which are crappily written and buggy!) Wohoo!
@@ -56,8 +56,7 @@ from datetime import datetime
 # remove the plotting code.
 import matplotlib.pyplot as plt
 
-#@@@#from oscope_scpi import MSOX3000
-from oscope_scpi import MXR058A
+from oscope_scpi import Oscilloscope
 
 def handleFilename(fname, ext, unique=True, timestamp=True):
 
@@ -141,14 +140,25 @@ def main():
 
     # Set to the IP address of the oscilloscope
     #@@@#agilent_msox_3034a = os.environ.get('MSOX3000_IP', 'TCPIP0::172.16.2.13::INSTR')
-    agilent_mxr_058a = os.environ.get('MXR058A_IP', 'TCPIP0::172.16.2.13::INSTR')
+    #@@@#agilent_mxr_058a = os.environ.get('MXR058A_IP', 'TCPIP0::172.16.2.13::INSTR')
+    pyvisa_oscope = os.environ.get('OSCOPE_IP', 'TCPIP0::172.16.2.13::INSTR')
     
     ## Connect to the Oscilloscope
-    #@@@#scope = MSOX3000(agilent_msox_3034a)
-    scope = MXR058A(agilent_mxr_058a)
-    scope.open()
+    scope = Oscilloscope(pyvisa_oscope)
 
-    print('Found SCPI Device: ' + scope.idn() + '\n')
+    ## Help to use with other models. Likely will not need these three
+    ## lines once get IDN strings from all know oscilloscopes that I
+    ## want to use
+    scope.open()
+    print('Potential SCPI Device: ' + scope.idn() + '\n')
+    scope.close()
+    
+    ## Upgrade Object to best match based on IDN string
+    scope = scope.getBestClass()
+    
+    ## Open this object and work with it
+    scope.open()
+    print('Using SCPI Device:     ' + scope.idn() + '\n')
 
     # parse command line options with knowledge of instrument
     args = parse(scope)
@@ -190,7 +200,6 @@ def main():
     if (args.statistics):
         stats = scope.measureStatistics()
 
-        #@@@#print('\nNOTE: If returned value is >= {}, then it is to be considered INVALID\n'.format(MSOX3000.OverRange))
         print('\nNOTE: If returned value is >= {}, then it is to be considered INVALID\n'.format(scope.OverRange))
         print('{: ^24} {: ^12} {: ^12} {: ^12} {: ^12} {: ^12} {: ^12}'.format('Measure', 'Current', 'Mean', 'Min', 'Max', 'Std Dev', 'Count'))
         for stat in stats:
@@ -211,7 +220,6 @@ def main():
             try:
                 chan = lst[0]
 
-                #@@@#print('\nNOTE: If returned value is >= {}, then it is to be considered INVALID'.format(MSOX3000.OverRange))
                 print('\nNOTE: If returned value is >= {}, then it is to be considered INVALID'.format(scope.OverRange))
                 print('NOTE: Have not double-checked that these entities are correct, so user must double-check')
                 print('\nMeasurements for Ch. {}:'.format(chan))
@@ -247,7 +255,7 @@ def main():
                         # use a blank string to put in an extra line
                         print()
                     else:
-                        # using MSOX3000.measureTbl[] dictionary, call the
+                        # using scope.measureTbl[] dictionary, call the
                         # appropriate method to read the
                         # measurement. Also, using the same measurement
                         # name, pass it to the polish() method to format
@@ -294,7 +302,6 @@ def main():
             try:
                 # check the channel
                 channel = nxt[0]
-                #@@@#if (channel in MSOX3000.chanAllValidList):
                 if (channel in scope.chanAllValidList):
 
                     (x, y, header, meta) = scope.waveformData(channel)
