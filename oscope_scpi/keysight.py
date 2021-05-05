@@ -83,14 +83,20 @@ class Keysight(Oscilloscope):
 
     def modeRun(self):
         """ Set Oscilloscope to RUN Mode """
+        # found that with UXR it helped to wait a little to make sure mode switch happens
+        sleep(0.1)
         self._instWrite('RUN')
 
     def modeStop(self):
         """ Set Oscilloscope to STOP Mode """
+        # found that with UXR it helped to wait a little to make sure mode switch happens
+        sleep(0.1)
         self._instWrite('STOP')
 
     def modeSingle(self):
         """ Set Oscilloscope to SINGLE Mode """
+        # found that with UXR it helped to wait a little to make sure mode switch happens
+        sleep(0.1)
         self._instWrite('SINGLE')
 
         
