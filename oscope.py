@@ -167,7 +167,7 @@ def main():
     
     ## Open this object and work with it
     scope.open()
-    print('Using SCPI Device:     ' + scope.idn() + '\n')
+    print('Using SCPI Device:     ' + scope.idn() + ' of series: ' + scope.series + '\n')
 
     # parse command line options with knowledge of instrument
     args = parse(scope)
