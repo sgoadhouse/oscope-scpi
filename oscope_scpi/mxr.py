@@ -40,12 +40,6 @@ except Exception:
     sys.path.append(os.getcwd())
     from keysight import Keysight
 
-from time import sleep
-from datetime import datetime
-from quantiphy import Quantity
-from sys import version_info
-import pyvisa as visa
-
 class MXR(Keysight):
     """Basic class for controlling and accessing a Keysight MXR Series Oscilloscope"""
 
@@ -58,6 +52,8 @@ class MXR(Keysight):
         """
         super(MXR, self).__init__(resource, maxChannel, wait)
 
+        # Give the Series a name
+        self._series = 'MXR'
 
     def measureStatistics(self):
         """Returns an array of dictionaries from the current statistics window.
@@ -69,7 +65,12 @@ class MXR(Keysight):
         statFlat = super(MXR, self)._measureStatistics()
         
         # convert the flat list into a two-dimentional matrix with seven columns per row
-        statMat = [statFlat[i:i+7] for i in range(0,len(statFlat),7)]
+        cols = 7
+        if ((len(statFlat) % cols != 0)):
+            print('Unexpected response. Oscilloscope may not have any measurements enabled.')
+            statMat = []
+        else:
+            statMat = [statFlat[i:i+cols] for i in range(0,len(statFlat),cols)]
         
         # convert each row into a dictionary, while converting text strings into numbers
         stats = []

@@ -104,8 +104,17 @@ def parse(scope):
     parser.add_argument('--statistics', '-t', action='store_true', help='dump to the output the current displayed measurements')
     parser.add_argument('--autoscale', '-u',  nargs='?', action='append', choices=scope.chanAllValidList,
                             help='cause selected channel to get displayed and autoscaled. Can issue multiples of this option. Leave arg blank to autoscale displayed channels.')
-    parser.add_argument('--dvm', '-d', nargs=1, action='append', choices=scope.chanAnaValidList,
-                            help='measure and output the DVM readings of selected channel')
+
+    if (scope.series == 'KEYSIGHT' or scope.series == 'UXR'):
+        # generic KEYSIGHT series and UXR series do not support DVM,
+        # but still need to be able to check args.dvm, so suppress dvm
+        # from help() and if someone tries to use it, force to None to
+        # prevent its use.
+        parser.add_argument('--dvm', '-d', action='store_const', const=None, help=argparse.SUPPRESS)
+    else:
+        parser.add_argument('--dvm', '-d', nargs=1, action='append', choices=scope.chanAnaValidList,
+                                help='measure and output the DVM readings of selected channel')
+
     parser.add_argument('--measure', '-m', nargs=1, action='append', choices=scope.chanAnaValidList,
                             help='measure and output the selected channel')
     parser.add_argument('--annotate', '-a', nargs='?', metavar='text', const=' ', help='Add annotation text to screen. Clear text if label is blank')

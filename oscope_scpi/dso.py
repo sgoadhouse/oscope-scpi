@@ -51,6 +51,9 @@ class DSOX(Keysight):
         wait       - float that gives the default number of seconds to wait after sending each command
         """
         super(DSOX, self).__init__(resource, maxChannel, wait)
+
+        # Give the Series a name
+        self._series = 'DSOX'        
         
     def measureStatistics(self):
         """Returns an array of dictionaries from the current statistics window.
@@ -66,7 +69,12 @@ class DSOX(Keysight):
         statFlat = super(DSOX, self)._measureStatistics()
         
         # convert the flat list into a two-dimentional matrix with seven columns per row
-        statMat = [statFlat[i:i+7] for i in range(0,len(statFlat),7)]
+        cols = 7
+        if ((len(statFlat) % cols != 0)):
+            print('Unexpected response. Oscilloscope may not have any measurements enabled.')
+            statMat = []
+        else:
+            statMat = [statFlat[i:i+cols] for i in range(0,len(statFlat),cols)]
         
         # convert each row into a dictionary, while converting text strings into numbers
         stats = []
@@ -94,6 +102,9 @@ class MSOX(DSOX):
         wait       - float that gives the default number of seconds to wait after sending each command
         """
         super(MSOX, self).__init__(resource, maxChannel, wait)
+
+        # Give the Series a name
+        self._series = 'MSOX'
         
 class DSOX3xx2A(DSOX):
     """Basic class for controlling and accessing a HP/Agilent/Keysight DSO-X 3xx2A 2-Channel Oscilloscope"""
@@ -107,6 +118,9 @@ class DSOX3xx2A(DSOX):
         wait       - float that gives the default number of seconds to wait after sending each command
         """
         super(DSOX3xx2A, self).__init__(resource, maxChannel=DSOX3xx2A.maxChannel, wait=wait)
+
+        # Give the Series a name
+        self._series = 'DSOX3'
         
 class MSOX3xx2A(MSOX):
     """Basic class for controlling and accessing a HP/Agilent/Keysight MSO-X 3xx2A 2-Channel Oscilloscope"""
@@ -121,6 +135,9 @@ class MSOX3xx2A(MSOX):
         """
         super(MSOX3xx2A, self).__init__(resource, maxChannel=MSOX3xx2A.maxChannel, wait=wait)
 
+        # Give the Series a name
+        self._series = 'MSOX3'
+
 class DSOX3xx4A(DSOX):
     """Basic class for controlling and accessing a HP/Agilent/Keysight DSO-X 3xx4A 4-Channel Oscilloscope"""
 
@@ -133,6 +150,9 @@ class DSOX3xx4A(DSOX):
         wait       - float that gives the default number of seconds to wait after sending each command
         """
         super(DSOX3xx4A, self).__init__(resource, maxChannel=DSOX3xx4A.maxChannel, wait=wait)
+
+        # Give the Series a name
+        self._series = 'DSOX3'
         
 class MSOX3xx4A(MSOX):
     """Basic class for controlling and accessing a HP/Agilent/Keysight MSO-X 3xx4A 4-Channel Oscilloscope"""
@@ -147,4 +167,6 @@ class MSOX3xx4A(MSOX):
         """
         super(MSOX3xx4A, self).__init__(resource, maxChannel=MSOX3xx4A.maxChannel, wait=wait)
         
+        # Give the Series a name
+        self._series = 'MSOX3'
     

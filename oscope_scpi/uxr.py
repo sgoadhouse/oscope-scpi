@@ -52,6 +52,8 @@ class UXR(Keysight):
         """
         super(UXR, self).__init__(resource, maxChannel, wait)
 
+        # Give the Series a name
+        self._series = 'UXR'        
 
     def measureStatistics(self):
         """Returns an array of dictionaries from the current statistics window.
@@ -61,9 +63,14 @@ class UXR(Keysight):
         """
 
         statFlat = super(UXR, self)._measureStatistics()
-        
+
         # convert the flat list into a two-dimentional matrix with seven columns per row
-        statMat = [statFlat[i:i+7] for i in range(0,len(statFlat),7)]
+        cols = 7
+        if ((len(statFlat) % cols != 0)):
+            print('Unexpected response. Oscilloscope may not have any measurements enabled.')
+            statMat = []
+        else:
+            statMat = [statFlat[i:i+cols] for i in range(0,len(statFlat),cols)]
         
         # convert each row into a dictionary, while converting text strings into numbers
         stats = []

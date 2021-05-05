@@ -73,6 +73,9 @@ class Keysight(Oscilloscope):
         # digital channels 8-15
         self._chanAllValidList = [self.channelStr(x) for x in range(1,self._max_chan+1)] + [str(x) for x in ['POD1','POD2']]
 
+        # Give the Series a name
+        self._series = 'KEYSIGHT'
+
         # This will store annotation text if that feature is used
         self._annotationText = ''
         self._annotationColor = 'ch1' # default to Channel 1 color
@@ -675,6 +678,10 @@ class Keysight(Oscilloscope):
         read values. Set to None for no waiting (not recommended)
         """
 
+        if (self.series == 'KEYSIGHT' or self.series == 'UXR'):
+            # Generic Keysight and UXR do not support DVM
+            raise RuntimeError(f"This machine appears to be of the {self.series} series which does not support DVM")
+        
         # If a channel value is passed in, make it the
         # current channel
         if channel is not None and type(channel) is not list:
@@ -735,6 +742,10 @@ class Keysight(Oscilloscope):
     def DVMisEnabled(self):
         """Return True is DVM is enabled, else False"""
 
+        if (self.series == 'KEYSIGHT' or self.series == 'UXR'):
+            # Generic Keysight and UXR do not support DVM
+            raise RuntimeError(f"This machine appears to be of the {self.series} series which does not support DVM")
+
         en = self._instQuery("DVM:ENABle?")
         return self._1OR0(en)
 
@@ -743,6 +754,10 @@ class Keysight(Oscilloscope):
 
         enable: If True, Enable (turn on) DVM mode, else Disable (turn off) DVM mode
         """
+
+        if (self.series == 'KEYSIGHT' or self.series == 'UXR'):
+            # Generic Keysight and UXR do not support DVM
+            raise RuntimeError(f"This machine appears to be of the {self.series} series which does not support DVM")
 
         if (enable):
             self._instWrite("DVM:ENABLE ON")

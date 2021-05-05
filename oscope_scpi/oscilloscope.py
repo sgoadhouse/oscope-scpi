@@ -85,6 +85,9 @@ class Oscilloscope(SCPI):
         # the analog channels, POD1 for digital channels 0-7 or POD2 for
         # digital channels 8-15
         self._chanAllValidList = self._chanAnaValidList + [str(x) for x in ['POD1','POD2']]
+
+        # Give the Series a name
+        self._series = 'GENERIC'
         
     @property
     def chanAnaValidList(self):
@@ -94,6 +97,11 @@ class Oscilloscope(SCPI):
     def chanAllValidList(self):
         return self._chanAllValidList
 
+    @property
+    def series(self):
+        # Use this so can branch activities based on oscilloscope series name
+        return self._series
+    
     def getBestClass(self):
         """Open the connection and based on ID strings, create an object that
         is the most appropriate child class for this
@@ -128,12 +136,29 @@ class Oscilloscope(SCPI):
                 else:
                     # Generic MXR
                     newobj = MXR(self._resource, wait=self._wait)
-            elif (self._IDNmodel.upper().startswith('UXR')):
+            elif (self._IDNmodel.upper().startswith('EXR')):
                 try:
-                    from .uxr import UXR, UXRxx4A, UXRxx2A
+                    from .exr import EXR, EXRxx8A, EXRxx4A
                 except Exception:
                     sys.path.append(os.getcwd())
-                    from uxr import UXR, UXRxx4A, UXRxx2A
+                    from exr import EXR, EXRxx8A, EXRxx4A
+                    
+                # One of the EXR Oscilloscopes 
+                if (self._IDNmodel.upper().endswith('8A')):
+                    # 8 channel EXR
+                    newobj = EXRxx8A(self._resource, wait=self._wait)
+                elif (self._IDNmodel.upper().endswith('4A')):
+                    # 4 channel EXR
+                    newobj = EXRxx4A(self._resource, wait=self._wait)
+                else:
+                    # Generic EXR
+                    newobj = EXR(self._resource, wait=self._wait)
+            elif (self._IDNmodel.upper().startswith('UXR')):
+                try:
+                    from .uxr import UXR, UXRxxx4A, UXRxxx2A
+                except Exception:
+                    sys.path.append(os.getcwd())
+                    from uxr import UXR, UXRxxx4A, UXRxxx2A
 
                 # One of the UXR Oscilloscopes 
                 if (self._IDNmodel.upper().endswith('4A') or
