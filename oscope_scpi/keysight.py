@@ -31,10 +31,14 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import sys
+import os
+
 try:
-    from . import Oscilloscope
-except Exception:
     from .oscilloscope import Oscilloscope
+except Exception:
+    sys.path.append(os.getcwd())
+    from oscilloscope import Oscilloscope
     
 from time import sleep
 from datetime import datetime
@@ -72,6 +76,19 @@ class Keysight(Oscilloscope):
         # This will store annotation text if that feature is used
         self._annotationText = ''
         self._annotationColor = 'ch1' # default to Channel 1 color
+
+
+    def modeRun(self):
+        """ Set Oscilloscope to RUN Mode """
+        self._instWrite('RUN')
+
+    def modeStop(self):
+        """ Set Oscilloscope to STOP Mode """
+        self._instWrite('STOP')
+
+    def modeSingle(self):
+        """ Set Oscilloscope to SINGLE Mode """
+        self._instWrite('SINGLE')
 
         
     def annotate(self, text, color=None, background='TRAN'):
@@ -850,7 +867,10 @@ class Keysight(Oscilloscope):
             # If desire to install the measurement, make sure the
             # statistics display is on and then use the command form of
             # the measurement to install the measurement.
-            self._instWrite("MEASure:STATistics:DISPlay ON")
+            if (self._version > 2.60):
+                self._instWrite("MEASure:STATistics ON")
+            else:
+                self._instWrite("MEASure:STATistics:DISPlay ON")
             self._instWrite(strWr)
 
         # wait a little before read value, if wait is not None
@@ -908,9 +928,13 @@ class Keysight(Oscilloscope):
         install - if True, adds measurement to the statistics display
         """
 
+        
         if (self._version > 2.60):
             # BWIDth changed - now it is burst width within waveform, not just Screen edges
             # must set an idle time - not sure what to set - setting 1 us for now
+            if channel is None:
+                # need channel as parameter so grab self.channel if channel is None
+                channel = self.channel
             return self._measure("BWIDth", para="{},{}".format(self.channelStr(channel),'1e-6'),
                                  channel=channel, wait=wait, install=install)
         else:
@@ -967,6 +991,9 @@ class Keysight(Oscilloscope):
 
         if (self._version > 2.60):
             # Must specify if Positive (Rising Edge to Rising Edge)
+            if channel is None:
+                # need channel as parameter so grab self.channel if channel is None
+                channel = self.channel
             return self._measure("DUTYcycle", para="{},{}".format(self.channelStr(channel),'RISing'),
                                  channel=channel, wait=wait, install=install)
         else:
@@ -1067,6 +1094,9 @@ class Keysight(Oscilloscope):
 
         if (self._version > 2.60):
             # Must specify if Negative (Falling Edge to Falling Edge)
+            if channel is None:
+                # need channel as parameter so grab self.channel if channel is None
+                channel = self.channel
             return self._measure("DUTYcycle", para="{},{}".format(self.channelStr(channel),'FALLing'),
                                  channel=channel, wait=wait, install=install)
         else:

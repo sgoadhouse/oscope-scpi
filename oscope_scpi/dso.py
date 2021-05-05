@@ -31,9 +31,13 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import sys
+import os
+
 try:
-    from . import Keysight
+    from .keysight import Keysight
 except Exception:
+    sys.path.append(os.getcwd())
     from keysight import Keysight
 
 class DSOX(Keysight):
@@ -144,99 +148,3 @@ class MSOX3xx4A(MSOX):
         super(MSOX3xx4A, self).__init__(resource, maxChannel=MSOX3xx4A.maxChannel, wait=wait)
         
     
-if __name__ == '__main__':
-    import argparse
-    parser = argparse.ArgumentParser(description='Access and control a MSO-X/DSO-X 3000 Oscilloscope')
-    parser.add_argument('chan', nargs='?', type=int, help='Channel to access/control (starts at 1)', default=1)
-    args = parser.parse_args()
-
-    from os import environ
-    resource = environ.get('MSOX3000_IP', 'TCPIP0::172.16.2.13::INSTR')
-    instr = MSOX3000(resource)
-    instr.open()
-
-    # set the channel (can pass channel to each method or just set it
-    # once and it becomes the default for all following calls)
-    instr.channel = str(args.chan)
-
-    if not instr.isOutputOn():
-        instr.outputOn()
-
-    # Install measurements to display in statistics display and also
-    # return their current values
-    print('Ch. {} Settings: {:6.4e} V  PW {:6.4e} s\n'.
-              format(instr.channel, instr.measureVoltAverage(install=True),
-                         instr.measurePosPulseWidth(install=True)))
-
-    # Add an annotation to the screen before hardcopy
-    instr._instWrite("DISPlay:ANN ON")
-    instr._instWrite('DISPlay:ANN:TEXT "{}\\n{} {}"'.format('Example of Annotation','for Channel',instr.channel))
-    instr._instWrite("DISPlay:ANN:BACKground TRAN")   # transparent background - can also be OPAQue or INVerted
-    instr._instWrite("DISPlay:ANN:COLor CH{}".format(instr.channel))
-
-    # Change label of the channel to "MySig"
-    instr._instWrite('CHAN{}:LABel "MySig"'.format(instr.channel))
-    instr._instWrite('DISPlay:LABel ON')
-
-    # Make sure the statistics display is showing
-    instr._instWrite("SYSTem:MENU MEASure")
-    instr._instWrite("MEASure:STATistics:DISPlay ON")
-
-    ## Save a hardcopy of the screen
-    instr.hardcopy('outfile.png')
-
-    # Change label back to the default
-    instr._instWrite('CHAN{}:LABel "{}"'.format(instr.channel, instr.channel))
-    instr._instWrite('DISPlay:LABel OFF')
-
-    # Turn off the annotation
-    instr._instWrite("DISPlay:ANN OFF")
-
-    ## Read ALL available measurements from channel, without installing
-    ## to statistics display, with units
-    print('\nMeasurements for Ch. {}:'.format(instr.channel))
-    measurements = ['Bit Rate',
-                    'Burst Width',
-                    'Counter Freq',
-                    'Frequency',
-                    'Period',
-                    'Duty',
-                    'Neg Duty',
-                    '+ Width',
-                    '- Width',
-                    'Rise Time',
-                    'Num Rising',
-                    'Num Pos Pulses',
-                    'Fall Time',
-                    'Num Falling',
-                    'Num Neg Pulses',
-                    'Overshoot',
-                    'Preshoot',
-                    '',
-                    'Amplitude',
-                    'Pk-Pk',
-                    'Top',
-                    'Base',
-                    'Maximum',
-                    'Minimum',
-                    'Average - Full Screen',
-                    'RMS - Full Screen',
-                    ]
-    for meas in measurements:
-        if (meas == ''):
-            # use a blank string to put in an extra line
-            print()
-        else:
-            # using MSOX3000.measureTbl[] dictionary, call the
-            # appropriate method to read the measurement. Also, using
-            # the same measurement name, pass it to the polish() method
-            # to format the data with units and SI suffix.
-            print('{: <24} {:>12.6}'.format(meas,instr.polish(instr.measureTblCall(meas), meas)))
-
-    ## turn off the channel
-    instr.outputOff()
-
-    ## return to LOCAL mode
-    instr.setLocal()
-
-    instr.close()

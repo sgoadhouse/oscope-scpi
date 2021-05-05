@@ -36,9 +36,13 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import sys
+import os
+
 try:
-    from . import SCPI
+    from .scpi import SCPI
 except Exception:
+    sys.path.append(os.getcwd())
     from scpi import SCPI
 
 from quantiphy import Quantity
@@ -109,9 +113,10 @@ class Oscilloscope(SCPI):
             # An Agilent/Keysight scope so check model
             if (self._IDNmodel.upper().startswith('MXR')):
                 try:
-                    from . import MXR, MXRxx8A, MXRxx4A    
-                except Exception:
                     from .mxr import MXR, MXRxx8A, MXRxx4A
+                except Exception:
+                    sys.path.append(os.getcwd())
+                    from mxr import MXR, MXRxx8A, MXRxx4A
                     
                 # One of the MXR Oscilloscopes 
                 if (self._IDNmodel.upper().endswith('8A')):
@@ -125,9 +130,10 @@ class Oscilloscope(SCPI):
                     newobj = MXR(self._resource, wait=self._wait)
             elif (self._IDNmodel.upper().startswith('UXR')):
                 try:
-                    from . import UXR, UXRxx4A, UXRxx2A    
-                except Exception:
                     from .uxr import UXR, UXRxx4A, UXRxx2A
+                except Exception:
+                    sys.path.append(os.getcwd())
+                    from uxr import UXR, UXRxx4A, UXRxx2A
 
                 # One of the UXR Oscilloscopes 
                 if (self._IDNmodel.upper().endswith('4A') or
@@ -143,11 +149,10 @@ class Oscilloscope(SCPI):
                     newobj = UXR(self._resource, wait=self._wait)
             elif (self._IDNmodel.upper().startswith('DSOX')):
                 try:
-                    from . import DSOX, DSOX3xx4A, DSOX3xx2A
-                    from . import MSOX, MSOX3xx4A, MSOX3xx2A
-                except Exception:
                     from .dso import DSOX, DSOX3xx4A, DSOX3xx2A
-                    from .mso import MSOX, MSOX3xx4A, MSOX3xx2A
+                except Exception:
+                    sys.path.append(os.getcwd())
+                    from dso import DSOX, DSOX3xx4A, DSOX3xx2A
     
                 # One of the DSOX Oscilloscopes 
                 if (self._IDNmodel.upper().startswith('DSOX3') and
@@ -162,6 +167,12 @@ class Oscilloscope(SCPI):
                     # Generic DSOX
                     newobj = DSOX(self._resource, wait=self._wait)
             elif (self._IDNmodel.upper().startswith('MSOX')):
+                try:
+                    from .dso import MSOX, MSOX3xx4A, MSOX3xx2A
+                except Exception:
+                    sys.path.append(os.getcwd())
+                    from dso import MSOX, MSOX3xx4A, MSOX3xx2A
+    
                 # One of the MSOX Oscilloscopes 
                 if (self._IDNmodel.upper().startswith('MSOX3') and
                     self._IDNmodel.upper().endswith('4A')):
@@ -176,9 +187,10 @@ class Oscilloscope(SCPI):
                     newobj = MSOX(self._resource, wait=self._wait)
             else:
                 try:
-                    from . import Keysight
-                except Exception:
                     from .keysight import Keysight
+                except Exception:
+                    sys.path.append(os.getcwd())
+                    from keysight import Keysight
                     
                 # Generic Keysight Oscilloscope
                 newobj = Keysight(self._resource, wait=self._wait)
@@ -371,3 +383,110 @@ class Oscilloscope(SCPI):
         return pol
 
 
+if __name__ == '__main__':
+    ## NOTE: This example code currently only works on oscilloscopes
+    ## fully defined by the child classes. Currently that is just
+    ## HP/Agilent/Keysight oscilloscopes.
+
+    import argparse
+    parser = argparse.ArgumentParser(description='Access and control an Oscilloscope')
+    parser.add_argument('chan', nargs='?', type=int, help='Channel to access/control (starts at 1)', default=1)
+    args = parser.parse_args()
+
+    from os import environ
+    resource = environ.get('OSCOPE_IP', 'TCPIP0::172.16.2.13::INSTR')
+    instr = Oscilloscope(resource)
+    ## Upgrade Object to best match based on IDN string
+    instr = instr.getBestClass()
+    instr.open()
+
+    # set the channel (can pass channel to each method or just set it
+    # once and it becomes the default for all following calls)
+    instr.channel = str(args.chan)
+
+    if not instr.isOutputOn():
+        instr.outputOn()
+
+    # Install measurements to display in statistics display and also
+    # return their current values
+    print('Ch. {} Settings: {:6.4e} V  PW {:6.4e} s\n'.
+              format(instr.channel, instr.measureVoltAverage(install=True),
+                         instr.measurePosPulseWidth(install=True)))
+
+    # Add an annotation to the screen before hardcopy
+    instr.annotate("{}\\n{} {}".format('Example of Annotation','for Channel',instr.channel), 'ch1')
+
+    # Change label of the channel to "MySig"
+    instr.channelLabel("MySig".format(instr.channel))
+
+    # Make sure the statistics display is showing
+    instr.measureStatistics()
+
+    # STOP Oscilloscope (not required for hardcopy - only showing example of how to do it)
+    instr.modeStop()
+    
+    ## Save a hardcopy of the screen
+    instr.hardcopy('outfile.png')
+
+    # SINGLE mode (just an example)
+    instr.modeSingle()
+    
+    # Change label back to the default
+    #
+    # NOTE: can use instr.channelLabelOff() but showing an example of sending a SCPI command directly
+    instr._instWrite('DISPlay:LABel OFF')
+
+    # RUN mode
+    instr.modeRun()
+    
+    # Turn off the annotation
+    instr.annotateOff()
+
+    ## Read ALL available measurements from channel, without installing
+    ## to statistics display, with units
+    print('\nMeasurements for Ch. {}:'.format(instr.channel))
+    measurements = ['Bit Rate',
+                    'Burst Width',
+                    'Counter Freq',
+                    'Frequency',
+                    'Period',
+                    'Duty',
+                    'Neg Duty',
+                    '+ Width',
+                    '- Width',
+                    'Rise Time',
+                    'Num Rising',
+                    'Num Pos Pulses',
+                    'Fall Time',
+                    'Num Falling',
+                    'Num Neg Pulses',
+                    'Overshoot',
+                    'Preshoot',
+                    '',
+                    'Amplitude',
+                    'Pk-Pk',
+                    'Top',
+                    'Base',
+                    'Maximum',
+                    'Minimum',
+                    'Average - Full Screen',
+                    'RMS - Full Screen',
+                    ]
+    for meas in measurements:
+        if (meas is ''):
+            # use a blank string to put in an extra line
+            print()
+        else:
+            # using instr.measureTbl[] dictionary, call the
+            # appropriate method to read the measurement. Also, using
+            # the same measurement name, pass it to the polish() method
+            # to format the data with units and SI suffix.
+            print('{: <24} {:>12.6}'.format(meas,instr.polish(instr.measureTblCall(meas), meas)))
+
+    ## turn off the channel
+    instr.outputOff()
+
+    ## return to LOCAL mode
+    instr.setLocal()
+
+    instr.close()

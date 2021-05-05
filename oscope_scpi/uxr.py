@@ -31,16 +31,14 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-try:
-    from . import Keysight
-except Exception:
-    from keysight import Keysight
+import sys
+import os
 
-from time import sleep
-from datetime import datetime
-from quantiphy import Quantity
-from sys import version_info
-import pyvisa as visa
+try:
+    from .keysight import Keysight
+except Exception:
+    sys.path.append(os.getcwd())
+    from keysight import Keysight
 
 class UXR(Keysight):
     """Basic class for controlling and accessing a Keysight UXR Series Oscilloscope"""
