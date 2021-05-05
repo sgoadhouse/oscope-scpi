@@ -414,7 +414,6 @@ class SCPI(object):
 
         str = 'STATus? {}'.format(self.channelStr(self.channel))
         ret = self._instQuery(str)
-        # @@@print("1:", ret)
         return self._1OR0(ret)
 
     def outputOn(self, channel=None, wait=None):

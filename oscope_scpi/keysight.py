@@ -398,8 +398,6 @@ class Keysight(Oscilloscope):
 
         # If the acquire type is HHIStogram or VHIStogram, the x data
         # needs to just be an incrementing count.
-        #
-        # @@@ Not yet sure how to convert this into bins
         if (acq_type == 3 or acq_type == 4):
             # create an array of an incrementing count for nLength
             x = np.arange(nLength)
@@ -440,7 +438,6 @@ class Keysight(Oscilloscope):
             # create an array of vertical data (typ. Voltages)
             y = (values * y_increment) + y_origin
 
-            #@@@#header = ['Time (s)', 'Voltage (V)', 'Preamble Element', 'Preamble Value']
             header = ['Time (s)', 'Voltage (V)']
 
             
@@ -614,7 +611,6 @@ class Keysight(Oscilloscope):
             # create an array of vertical data (typ. Voltages)
             y = ((values - y_reference) * y_increment) + y_origin
 
-            #@@@#header = ['Time (s)', 'Voltage (V)', 'Preamble Element', 'Preamble Value']
             header = ['Time (s)', 'Voltage (V)']
         
         # Return the data in numpy arrays along with the header & meta data
