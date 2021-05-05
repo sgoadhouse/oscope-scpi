@@ -34,13 +34,11 @@ from __future__ import print_function
 try:
     from . import Oscilloscope
 except Exception:
-    from oscilloscope import Oscilloscope
-
+    from .oscilloscope import Oscilloscope
+    
 from time import sleep
 from datetime import datetime
-from quantiphy import Quantity
 from sys import version_info
-import pyvisa as visa
 import numpy as np
 
 class Keysight(Oscilloscope):

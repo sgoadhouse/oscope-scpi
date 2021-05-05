@@ -36,108 +36,18 @@ try:
 except Exception:
     from keysight import Keysight
 
-from time import sleep
-from datetime import datetime
-from quantiphy import Quantity
-from sys import version_info
-import pyvisa as visa
+class DSOX(Keysight):
+    """Basic class for controlling and accessing a HP/Agilent/Keysight Generic DSO-X Oscilloscope"""
 
-class MSOX3000(Keysight):
-    """Basic class for controlling and accessing a HP/Agilent/Keysight MSO-X/DSO-X 3000A Oscilloscope"""
-
-    maxChannel = 4
-
-    def __init__(self, resource, wait=0):
+    def __init__(self, resource, maxChannel=2, wait=0):
         """Init the class with the instruments resource string
 
-        resource - resource string or VISA descriptor, like TCPIP0::172.16.2.13::INSTR
-        wait     - float that gives the default number of seconds to wait after sending each command
+        resource   - resource string or VISA descriptor, like TCPIP0::172.16.2.13::INSTR
+        maxChannel - number of channels of this oscilloscope
+        wait       - float that gives the default number of seconds to wait after sending each command
         """
-        super(MSOX3000, self).__init__(resource, maxChannel=MSOX3000.maxChannel, wait=wait)
+        super(DSOX, self).__init__(resource, maxChannel, wait)
         
-    def setupAutoscaleOLD(self, channel=None):
-        """ Autoscale desired channel, which is a string. channel can also be a list of multiple strings"""
-
-        # If a channel value is passed in, make it the
-        # current channel
-        if channel is not None:
-            self.channel = channel
-
-        # Make channel a list even if it is a single value
-        if type(self.channel) is not list:
-            chanlist = [self.channel]
-        else:
-            chanlist = self.channel
-
-        # chanlist cannot have more than 5 elements
-        if (len(chanlist) > 5):
-            raise ValueError('Too many channels for AUTOSCALE! Max is 5. Aborting')
-            
-        chanstr = ''
-        for chan in chanlist:                        
-            # Check channel value
-            if (chan not in self.chanAllValidList):
-                raise ValueError('INVALID Channel Value for AUTOSCALE: {}  SKIPPING!'.format(chan))
-            else:
-                chanstr += ',' + self.channelStr(chan)
-
-        # remove the leading ',' when creating the command string with '[1:]'        
-        self._instWrite("AUToscale " + chanstr[1:])
-
-    def annotateOLD(self, text, color=None, background='TRAN'):
-        """ Add an annotation with text, color and background to screen
-
-            text - text of annotation. Can include \n for newlines (two characters)
-
-            color - string, one of {CH1 | CH2 | CH3 | CH4 | DIG | MATH | REF | MARK | WHIT | RED}
-
-            background - string, one of TRAN - transparent, OPAQue or INVerted
-        """
-
-        if (color):
-            self.annotateColor(color)
-
-        # Add an annotation to the screen
-        self._instWrite("DISPlay:ANN:BACKground {}".format(background))   # transparent background - can also be OPAQue or INVerted
-        self._instWrite('DISPlay:ANN:TEXT "{}"'.format(text))
-        self._instWrite("DISPlay:ANN ON")
-
-    def annotateColorOLD(self, color):
-        """ Change screen annotation color """
-
-        ## NOTE: Only certain values are allowed:
-        # {CH1 | CH2 | CH3 | CH4 | DIG | MATH | REF | MARK | WHIT | RED}
-        #
-        # The scope will respond with an error if an invalid color string is passed along
-        self._instWrite("DISPlay:ANN:COLor {}".format(color))
-
-    def annotateOffOLD(self):
-        """ Turn off screen annotation """
-
-        self._instWrite("DISPlay:ANN OFF")
-
-
-    def polishOLD(self, value, measure=None):
-        """ Using the QuantiPhy package, return a value that is in apparopriate Si units.
-
-        If value is >= Oscilloscope.OverRange, then return the invalid string instead of a Quantity().
-
-        If the measure string is None, then no units are used by the SI suffix is.
-
-        """
-
-        if (value >= Keysight.OverRange):
-            pol = '------'
-        else:
-            try:
-                pol = Quantity(value, self.measureTblUnits(measure))
-            except KeyError:
-                # If measure is None or does not exist
-                pol = Quantity(value)
-
-        return pol
-
-
     def measureStatistics(self):
         """Returns an array of dictionaries from the current statistics window.
 
@@ -145,11 +55,11 @@ class MSOX3000(Keysight):
         from the code below.
         """
 
-        # turn on the statistics display - these are specific to MSOX
+        # turn on the statistics display - these are specific to MSOX/DSOX
         self._instWrite("SYSTem:MENU MEASure")
         self._instWrite("MEASure:STATistics:DISPlay ON")
 
-        statFlat = super(MSOX3000, self)._measureStatistics()
+        statFlat = super(DSOX, self)._measureStatistics()
         
         # convert the flat list into a two-dimentional matrix with seven columns per row
         statMat = [statFlat[i:i+7] for i in range(0,len(statFlat),7)]
@@ -168,6 +78,71 @@ class MSOX3000(Keysight):
 
         # return the result in an array of dictionaries
         return stats
+
+class MSOX(DSOX):
+    """Basic class for controlling and accessing a HP/Agilent/Keysight Generic MSO-X Oscilloscope"""
+
+    def __init__(self, resource, maxChannel=2, wait=0):
+        """Init the class with the instruments resource string
+
+        resource   - resource string or VISA descriptor, like TCPIP0::172.16.2.13::INSTR
+        maxChannel - number of channels of this oscilloscope
+        wait       - float that gives the default number of seconds to wait after sending each command
+        """
+        super(MSOX, self).__init__(resource, maxChannel, wait)
+        
+class DSOX3xx2A(DSOX):
+    """Basic class for controlling and accessing a HP/Agilent/Keysight DSO-X 3xx2A 2-Channel Oscilloscope"""
+
+    maxChannel = 2
+
+    def __init__(self, resource, wait=0):
+        """Init the class with the instruments resource string
+
+        resource   - resource string or VISA descriptor, like TCPIP0::172.16.2.13::INSTR
+        wait       - float that gives the default number of seconds to wait after sending each command
+        """
+        super(DSOX3xx2A, self).__init__(resource, maxChannel=DSOX3xx2A.maxChannel, wait=wait)
+        
+class MSOX3xx2A(MSOX):
+    """Basic class for controlling and accessing a HP/Agilent/Keysight MSO-X 3xx2A 2-Channel Oscilloscope"""
+
+    maxChannel = 2
+
+    def __init__(self, resource, wait=0):
+        """Init the class with the instruments resource string
+
+        resource   - resource string or VISA descriptor, like TCPIP0::172.16.2.13::INSTR
+        wait       - float that gives the default number of seconds to wait after sending each command
+        """
+        super(MSOX3xx2A, self).__init__(resource, maxChannel=MSOX3xx2A.maxChannel, wait=wait)
+
+class DSOX3xx4A(DSOX):
+    """Basic class for controlling and accessing a HP/Agilent/Keysight DSO-X 3xx4A 4-Channel Oscilloscope"""
+
+    maxChannel = 4
+
+    def __init__(self, resource, wait=0):
+        """Init the class with the instruments resource string
+
+        resource   - resource string or VISA descriptor, like TCPIP0::172.16.2.13::INSTR
+        wait       - float that gives the default number of seconds to wait after sending each command
+        """
+        super(DSOX3xx4A, self).__init__(resource, maxChannel=DSOX3xx4A.maxChannel, wait=wait)
+        
+class MSOX3xx4A(MSOX):
+    """Basic class for controlling and accessing a HP/Agilent/Keysight MSO-X 3xx4A 4-Channel Oscilloscope"""
+
+    maxChannel = 4
+
+    def __init__(self, resource, wait=0):
+        """Init the class with the instruments resource string
+
+        resource   - resource string or VISA descriptor, like TCPIP0::172.16.2.13::INSTR
+        wait       - float that gives the default number of seconds to wait after sending each command
+        """
+        super(MSOX3xx4A, self).__init__(resource, maxChannel=MSOX3xx4A.maxChannel, wait=wait)
+        
     
 if __name__ == '__main__':
     import argparse

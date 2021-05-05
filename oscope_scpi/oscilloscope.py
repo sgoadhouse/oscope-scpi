@@ -41,11 +41,7 @@ try:
 except Exception:
     from scpi import SCPI
 
-from time import sleep
-from datetime import datetime
 from quantiphy import Quantity
-from sys import version_info
-import pyvisa as visa
 import numpy as np
 import csv
 
@@ -93,6 +89,101 @@ class Oscilloscope(SCPI):
     @property
     def chanAllValidList(self):
         return self._chanAllValidList
+
+    def getBestClass(self):
+        """Open the connection and based on ID strings, create an object that
+        is the most appropriate child class for this
+        oscilloscope. Returns the new object.
+
+        """
+
+        ## Make sure calling SCPI open which gets the ID String and parses it and then close
+        superduper = super()
+        superduper.open()
+        superduper.close()
+
+        # Default is to return myself as no child class that fits better than this
+        newobj = self
+        if (self._IDNmanu.upper().startswith('KEYSIGHT') or
+            self._IDNmanu.upper().startswith('AGILENT')):
+            # An Agilent/Keysight scope so check model
+            if (self._IDNmodel.upper().startswith('MXR')):
+                try:
+                    from . import MXR, MXRxx8A, MXRxx4A    
+                except Exception:
+                    from .mxr import MXR, MXRxx8A, MXRxx4A
+                    
+                # One of the MXR Oscilloscopes 
+                if (self._IDNmodel.upper().endswith('8A')):
+                    # 8 channel MXR
+                    newobj = MXRxx8A(self._resource, wait=self._wait)
+                elif (self._IDNmodel.upper().endswith('4A')):
+                    # 4 channel MXR
+                    newobj = MXRxx4A(self._resource, wait=self._wait)
+                else:
+                    # Generic MXR
+                    newobj = MXR(self._resource, wait=self._wait)
+            elif (self._IDNmodel.upper().startswith('UXR')):
+                try:
+                    from . import UXR, UXRxx4A, UXRxx2A    
+                except Exception:
+                    from .uxr import UXR, UXRxx4A, UXRxx2A
+
+                # One of the UXR Oscilloscopes 
+                if (self._IDNmodel.upper().endswith('4A') or
+                    self._IDNmodel.upper().endswith('4AP')):
+                    # 4 channel UXR
+                    newobj = UXRxxx4A(self._resource, wait=self._wait)
+                elif (self._IDNmodel.upper().endswith('2A') or
+                      self._IDNmodel.upper().endswith('2AP')):
+                    # 2 channel UXR
+                    newobj = UXRxxx2A(self._resource, wait=self._wait)
+                else:
+                    # Generic UXR
+                    newobj = UXR(self._resource, wait=self._wait)
+            elif (self._IDNmodel.upper().startswith('DSOX')):
+                try:
+                    from . import DSOX, DSOX3xx4A, DSOX3xx2A
+                    from . import MSOX, MSOX3xx4A, MSOX3xx2A
+                except Exception:
+                    from .dso import DSOX, DSOX3xx4A, DSOX3xx2A
+                    from .mso import MSOX, MSOX3xx4A, MSOX3xx2A
+    
+                # One of the DSOX Oscilloscopes 
+                if (self._IDNmodel.upper().startswith('DSOX3') and
+                    self._IDNmodel.upper().endswith('4A')):
+                    # 4 channel DSOX3xxx model
+                    newobj = DSOX3xx4A(self._resource, wait=self._wait)
+                elif (self._IDNmodel.upper().startswith('DSOX3') and
+                      self._IDNmodel.upper().endswith('2A')):
+                    # 2 channel DSOX3xxx model
+                    newobj = DSOX3xx2A(self._resource, wait=self._wait)
+                else:
+                    # Generic DSOX
+                    newobj = DSOX(self._resource, wait=self._wait)
+            elif (self._IDNmodel.upper().startswith('MSOX')):
+                # One of the MSOX Oscilloscopes 
+                if (self._IDNmodel.upper().startswith('MSOX3') and
+                    self._IDNmodel.upper().endswith('4A')):
+                    # 4 channel MSOX3xxx model
+                    newobj = MSOX3xx4A(self._resource, wait=self._wait)
+                elif (self._IDNmodel.upper().startswith('MSOX3') and
+                      self._IDNmodel.upper().endswith('2A')):
+                    # 2 channel MSOX3xxx model
+                    newobj = MSOX3xx2A(self._resource, wait=self._wait)
+                else:
+                    # Generic MSOX
+                    newobj = MSOX(self._resource, wait=self._wait)
+            else:
+                try:
+                    from . import Keysight
+                except Exception:
+                    from .keysight import Keysight
+                    
+                # Generic Keysight Oscilloscope
+                newobj = Keysight(self._resource, wait=self._wait)
+
+        return newobj
     
     # =========================================================
     # Based on the save oscilloscope setup example from the MSO-X 3000 Programming
