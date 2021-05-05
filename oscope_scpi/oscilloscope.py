@@ -172,7 +172,7 @@ class Oscilloscope(SCPI):
                 else:
                     # Generic UXR
                     newobj = UXR(self._resource, wait=self._wait)
-            elif (self._IDNmodel.upper().startswith('DSOX')):
+            elif (self._IDNmodel.upper().startswith('DSO-X')):
                 try:
                     from .dso import DSOX, DSOX3xx4A, DSOX3xx2A
                 except Exception:
@@ -180,18 +180,18 @@ class Oscilloscope(SCPI):
                     from dso import DSOX, DSOX3xx4A, DSOX3xx2A
     
                 # One of the DSOX Oscilloscopes 
-                if (self._IDNmodel.upper().startswith('DSOX3') and
+                if (self._IDNmodel.upper().startswith('DSO-X 3') and
                     self._IDNmodel.upper().endswith('4A')):
                     # 4 channel DSOX3xxx model
                     newobj = DSOX3xx4A(self._resource, wait=self._wait)
-                elif (self._IDNmodel.upper().startswith('DSOX3') and
+                elif (self._IDNmodel.upper().startswith('DSO-X 3') and
                       self._IDNmodel.upper().endswith('2A')):
                     # 2 channel DSOX3xxx model
                     newobj = DSOX3xx2A(self._resource, wait=self._wait)
                 else:
                     # Generic DSOX
                     newobj = DSOX(self._resource, wait=self._wait)
-            elif (self._IDNmodel.upper().startswith('MSOX')):
+            elif (self._IDNmodel.upper().startswith('MSO-X')):
                 try:
                     from .dso import MSOX, MSOX3xx4A, MSOX3xx2A
                 except Exception:
@@ -199,11 +199,11 @@ class Oscilloscope(SCPI):
                     from dso import MSOX, MSOX3xx4A, MSOX3xx2A
     
                 # One of the MSOX Oscilloscopes 
-                if (self._IDNmodel.upper().startswith('MSOX3') and
+                if (self._IDNmodel.upper().startswith('MSO-X 3') and
                     self._IDNmodel.upper().endswith('4A')):
                     # 4 channel MSOX3xxx model
                     newobj = MSOX3xx4A(self._resource, wait=self._wait)
-                elif (self._IDNmodel.upper().startswith('MSOX3') and
+                elif (self._IDNmodel.upper().startswith('MSO-X 3') and
                       self._IDNmodel.upper().endswith('2A')):
                     # 2 channel MSOX3xxx model
                     newobj = MSOX3xx2A(self._resource, wait=self._wait)
