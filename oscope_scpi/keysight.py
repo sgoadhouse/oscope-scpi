@@ -42,7 +42,6 @@ from quantiphy import Quantity
 from sys import version_info
 import pyvisa as visa
 import numpy as np
-import csv
 
 class Keysight(Oscilloscope):
     """Child class of Oscilloscope for controlling and accessing a HP/Agilent/Keysight Oscilloscope with PyVISA and SCPI commands"""
@@ -249,6 +248,7 @@ class Keysight(Oscilloscope):
     # modified to work within this class ...
     # =========================================================
     def _waveformDataNew(self, channel, points=None):
+        """ Download the Waveform Data of a particular Channel and return it. """
 
         DEBUG = True
         import struct
@@ -348,6 +348,8 @@ class Keysight(Oscilloscope):
         #
         # NOTE: These are already gathered from PREamble above but s
         #
+        acq_type    = int(acq_type)
+        wav_form    = int(wav_form)
         x_increment = float(x_increment)
         x_origin    = float(x_origin)
         y_increment = float(y_increment)
@@ -389,17 +391,46 @@ class Keysight(Oscilloscope):
         else:
             # otherwise, time-base data so create an array of time values
             x = (np.arange(nLength) * x_increment) + x_origin
-            
+
         # If the acquire type is DIGITAL, the y data
         # does not need to be converted to an analog value
         if (acq_type == 9):
-            y = values      # no conversion needed
+            if (channel.startswith('BUS')):
+                # If the channel name starts with BUS, then do not break into bits
+                y = values      # no conversion needed
+                header = ['Time (s)', 'BUS Values']
+
+            elif (channel.startswith('POD')):
+                # If the channel name starts with POD, then data needs
+                # to be split into bits
+                if (wav_form == 2):
+                    # wav_form of 2 is WORD, so 16 bits
+                    bits = 16
+                    typ = np.int16
+                else:
+                    # assume byte                
+                    bits = 8
+                    typ = np.int8
+
+                # So y will be a 2D array where y[0] is time array of bit 0, y[1] for bit 1, etc.
+                y = np.empty((bits, len(values)),typ)
+                for ch in range(bits):
+                    y[ch] = (values >> ch) & 1
+
+                # Put number of POD into 'pod'
+                pod = int(channel[-1])
+                header = ['Time (s)'] + ['D{}'.format((pod-1) * bits + ch) for ch in range(bits)]
+                    
         else:
             # create an array of vertical data (typ. Voltages)
             y = (values * y_increment) + y_origin
 
-        # Return the data in numpy arrays along with the meta data
-        return (x, y, meta)
+            #@@@#header = ['Time (s)', 'Voltage (V)', 'Preamble Element', 'Preamble Value']
+            header = ['Time (s)', 'Voltage (V)']
+
+            
+        # Return the data in numpy arrays along with the header & meta data
+        return (x, y, header, meta)
         
     # =========================================================
     # Based on the Waveform data download example from the MSO-X 3000 Programming
@@ -506,6 +537,7 @@ class Keysight(Oscilloscope):
         #
         # NOTE: These are already gathered from PREamble above but s
         #
+        wav_form    = int(wav_form)
         x_increment = float(x_increment)
         x_origin    = float(x_origin)
         y_increment = float(y_increment)
@@ -536,16 +568,42 @@ class Keysight(Oscilloscope):
         # create an array of time values
         x = (np.arange(nLength) * x_increment) + x_origin
 
-        # If the channel name starts with POD or BUS, then data is not
-        # analog and does not need to be converted
-        if (channel.startswith('POD') or channel.startswith('BUS')):
+        if (channel.startswith('BUS')):
+            # If the channel name starts with BUS, then data is not
+            # analog and does not need to be converted
             y = values      # no conversion needed
+            header = ['Time (s)', 'BUS Values']
+
+        elif (channel.startswith('POD')):
+            # If the channel name starts with POD, then data is
+            # digital and needs to be split into bits
+            if (wav_form == 1):
+                # wav_form of 1 is WORD, so 16 bits
+                bits = 16
+                typ = np.int16
+            else:
+                # assume byte                
+                bits = 8
+                typ = np.int8
+
+            # So y will be a 2D array where y[0] is time array of bit 0, y[1] for bit 1, etc.
+            y = np.empty((bits, len(y)),typ)
+            for ch in range(bits):
+                y[ch] = (values >> ch) & 1
+
+            # Put number of POD into 'pod'
+            pod = int(channel[-1])
+            header = ['Time (s)'] + ['D{}'.format((pod-1) * bits + ch) for ch in range(bits)]
+                
         else:
             # create an array of vertical data (typ. Voltages)
             y = ((values - y_reference) * y_increment) + y_origin
+
+            #@@@#header = ['Time (s)', 'Voltage (V)', 'Preamble Element', 'Preamble Value']
+            header = ['Time (s)', 'Voltage (V)']
         
-        # Return the data in numpy arrays along with the meta data
-        return (x, y, meta)
+        # Return the data in numpy arrays along with the header & meta data
+        return (x, y, header, meta)
 
     def waveformData(self, channel=None, points=None):
         """ Download waveform data of a selected channel
@@ -572,140 +630,12 @@ class Keysight(Oscilloscope):
 
         
         if (self._version > 2.60):
-            (x, y, meta) = self._waveformDataNew(self.channel, points)
+            (x, y, header, meta) = self._waveformDataNew(self.channel, points)
         else:
-            (x, y, meta) = self._waveformDataLegacy(self.channel, points)        
+            (x, y, header, meta) = self._waveformDataLegacy(self.channel, points)        
 
-        return (x, y, meta)
+        return (x, y, header, meta)
         
-
-    def waveformSaveCSV(self, filename, data, channel=None):
-        """
-        filename - base filename to store the data
-
-        data     - data to write: expected to be a list of (x, y, meta) but can just be (x, y)
-
-        channel  - channel, as string, to be measured - set to None to use the default channel
-
-        """
-
-        # If a channel value is passed in, make it the
-        # current channel
-        if channel is not None and type(channel) is not list:
-            self.channel = channel
-
-        # Make sure channel is NOT a list
-        if type(self.channel) is list or type(channel) is list:
-            raise ValueError('Channel cannot be a list for WAVEFORM!')
-
-        # Check channel value
-        if (self.channel not in self.chanAllValidList):
-            raise ValueError('INVALID Channel Value for WAVEFORM: {}  SKIPPING!'.format(self.channel))            
-
-        # Allow data to be either (x, y) or (x, y, meta)
-        if (len(data) == 2):
-            (x, y) = data
-            meta = []
-        else:
-            (x, y, meta) = data
-        
-        nLength = len(y)
-
-        # The reason we need channel passed in is so can check if a
-        # Digital POD and if so handle the y data differently.
-        if self.channel.upper().startswith('POD'):
-            pod = int(self.channel[-1])
-        else:
-            pod = None
-        
-        print('Writing data to CSV file. Please wait...')
-        
-        # Save waveform data values to CSV file.
-        #f = open("waveform_data.csv", "w")
-        #for i in range(0, nLength):
-        #    f.write("%E, %f\n" % (x[i], y[i]))
-
-        #f.close()
-        #print("Waveform format BYTE data written to waveform_data.csv.")
-        
-        # Open file for output. Only output x & y for simplicity. User
-        # will have to copy paste the meta data printed to the
-        # terminal
-        myFile = open(filename, 'w')
-        with myFile:
-            writer = csv.writer(myFile, dialect='excel', quoting=csv.QUOTE_NONNUMERIC)
-            if pod:
-                writer.writerow(['Time (s)'] + ['D{}'.format((pod-1) * 8 + ch) for ch in range(8)])
-            else:
-                #@@@#writer.writerow(['Time (s)', 'Voltage (V)', 'Preamble Element', 'Preamble Value'])
-                writer.writerow(['Time (s)', 'Voltage (V)'])
-
-            # Output waveform data in CSV format.
-            #@@@
-            #for i in range(0, nLength):
-            #    if pod:
-            #        writer.writerow([x[i]] + [(y[i] >> ch) & 1 for ch in range(8)])
-            #    else:
-            #        writer.writerow([x[i], y[i]])
-
-            for dat in zip(x,y):
-                if pod:
-                    writer.writerow([dat[0]] + [(dat[1] >> ch) & 1 for ch in range(8)])
-                else:
-                    writer.writerow(dat)
-                    
-        # return number of entries written
-        return nLength
-        
-    def waveform(self, filename, channel=None, points=None):
-        """Download waveform data of a selected channel into a csv file.
-
-        NOTE: This is a LEGACY function to prevent breaking API but it
-        is deprecated so use above waveform functions instead.
-
-        NOTE: Now that newer oscilloscopes have very large data
-        downloads, csv file format is not a good format for storing
-        because the files are so large that the convenience of csv
-        files has diminishing returns. They are too large for Excel to
-        load and are only useful from a scripting system like Python
-        or MATLAB or Root. See waveformSaveNPY() for a better option.
-
-        filename - base filename to store the data
-
-        channel  - channel, as string, to be measured - set to None to use the default channel
-
-        points   - number of points to capture - if None, captures all available points
-                   for newer devices, the captured points are centered around the center of the display
-
-        """
-
-        # Acquire the data (also sets self.channel)
-        (x, y, meta) = self.waveformData(channel, points)
-
-        # Save to CSV file
-        return self.waveformSaveCSV(filename, (x, y, meta), channel)
-    
-    
-    def polish(self, value, measure=None):
-        """ Using the QuantiPhy package, return a value that is in apparopriate Si units.
-
-        If value is >= self.OverRange, then return the invalid string instead of a Quantity().
-
-        If the measure string is None, then no units are used by the SI suffix is.
-
-        """
-
-        if (value >= self.OverRange):
-            pol = '------'
-        else:
-            try:
-                pol = Quantity(value, self._measureTbl[measure][0])
-            except KeyError:
-                # If measure is None or does not exist
-                pol = Quantity(value)
-
-        return pol
-
 
     def _measureStatistics(self):
         """Returns data from the current statistics window.

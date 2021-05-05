@@ -98,8 +98,8 @@ def parse(scope):
 
     parser = argparse.ArgumentParser(description='Access Agilent/KeySight MSO3034A scope')
     parser.add_argument('--hardcopy', '-y', metavar='outfile.png', help='grab hardcopy of scope screen and output to named file as a PNG image')
-    parser.add_argument('--waveform', '-w', nargs=2, metavar=('channel', 'outfile.csv'), action='append',
-                        help='grab waveform data of channel ('+ str(scope.chanAllValidList).strip('[]') + ') and output to named file as a CSV file')
+    parser.add_argument('--waveform', '-w', nargs=2, metavar=('channel', 'outfile.npz'), action='append',
+                        help='grab waveform data of channel ('+ str(scope.chanAllValidList).strip('[]') + ') and output to named file as a Numpy NPZ file (see oscopeplot.py)')
     parser.add_argument('--setup_save', '-s', metavar='outfile.stp', help='save the current setup of the oscilloscope into the named file')
     parser.add_argument('--setup_load', '-l', metavar='infile.stp', help='load the current setup of the oscilloscope from the named file')
     parser.add_argument('--statistics', '-t', action='store_true', help='dump to the output the current displayed measurements')
@@ -213,6 +213,7 @@ def main():
 
                 #@@@#print('\nNOTE: If returned value is >= {}, then it is to be considered INVALID'.format(MSOX3000.OverRange))
                 print('\nNOTE: If returned value is >= {}, then it is to be considered INVALID'.format(scope.OverRange))
+                print('NOTE: Have not double-checked that these entities are correct, so user must double-check')
                 print('\nMeasurements for Ch. {}:'.format(chan))
                 measurements = ['Bit Rate',
                                 'Burst Width',
@@ -296,16 +297,19 @@ def main():
                 #@@@#if (channel in MSOX3000.chanAllValidList):
                 if (channel in scope.chanAllValidList):
 
-                    #@@@ Remove points once get things working
-                    #(x, y, meta) = scope.waveformData(channel, points=10000)
-                    (x, y, meta) = scope.waveformData(channel)
+                    (x, y, header, meta) = scope.waveformData(channel)
 
-                    # Plot receive data to screen so user can see what they got before saving the file
-                    if True:
+                    # Plot received data to screen so user can see what they got before saving the file.
+                    # However, if the lengths do not match, cannot plot. This can happen if channel is PODx and data are bits.
+                    if (len(x) == len(y)):
                         print("Close the plot window to continue...")
                         fig, (ax1, ax2) = plt.subplots(1, 2)
                         ax1.plot(x, y)      # plot the data
+                        ax1.axvline(x=0.0, color='r', linestyle='--')
+                        ax1.axhline(y=0.0, color='r', linestyle='--')
                         ax1.set_title('Waveform Data')
+                        ax1.set_xlabel(header[0])
+                        ax1.set_ylabel(header[1])
             
                         # plot a histogram of the data
                         num_bins = 250
@@ -314,9 +318,14 @@ def main():
             
                         fig.tight_layout()
                         plt.show()
-                    
-                    fn = handleFilename(nxt[1], 'csv')
-                    dataLen = scope.waveformSaveCSV(fn, (x, y, meta), channel)
+
+                    # Use NPZ files which write in under a second instead of bulky csv files
+                    if False:
+                        fn = handleFilename(nxt[1], 'csv')
+                        dataLen = scope.waveformSaveCSV(fn, x, y, header, meta)
+                    else:
+                        fn = handleFilename(nxt[1], 'npz')
+                        dataLen = scope.waveformSaveNPZ(fn, x, y, header, meta)
                     print("Waveform Output of Channel {} in {} points to file {}".format(channel,dataLen,fn))
                 else:
                     print('INVALID Channel Value: {}  SKIPPING!'.format(channel))
