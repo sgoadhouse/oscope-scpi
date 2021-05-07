@@ -440,7 +440,7 @@ if __name__ == '__main__':
                          instr.measurePosPulseWidth(install=True)))
 
     # Add an annotation to the screen before hardcopy
-    instr.annotate("{}\\n{} {}".format('Example of Annotation','for Channel',instr.channel), 'ch1')
+    instr.annotate("{} {} {}".format('Example of Annotation','for Channel',instr.channel), 'ch1')
 
     # Change label of the channel to "MySigx"
     instr.channelLabel("MySig{}".format(instr.channel))

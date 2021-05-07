@@ -198,7 +198,7 @@ print('Ch. {} Settings: {:6.4e} V  PW {:6.4e} s\n'.
                      instr.measurePosPulseWidth(install=True)))
 
 # Add an annotation to the screen before hardcopy
-instr.annotate("{}\\n{} {}".format('Example of Annotation','for Channel',instr.channel), 'ch1')
+instr.annotate("{} {} {}".format('Example of Annotation','for Channel',instr.channel), 'ch1')
 
 # Change label of the channel to "MySig1"
 instr.channelLabel('MySig1')
