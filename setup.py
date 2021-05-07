@@ -7,7 +7,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setuptools.setup(name="oscope_scpi", 
-                 version='0.1.9',
+                 version='0.1.10',
                  description='Control of Oscilloscopes with SCPI command sets like Keysight MSO-X/DSO-X 3000A, UXR, MXR and EXR Series through python via PyVisa',
                  long_description=long_description,
                  long_description_content_type="text/markdown",
