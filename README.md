@@ -69,7 +69,7 @@ pip install oscope_scpi
 
 In order to run the example scripts `oscope.py` and `oscopeplot.py`, will also need to manually install:
 * [matplotlib 3.3.4](https://matplotlib.org)
-If cannot install `matplotlib` on your system, see the comments in `oscope.py` on how to modify it to work without `matplotlib`. 
+   * If cannot install `matplotlib` on your system, see the comments in `oscope.py` on how to modify it to work without `matplotlib`. 
 
 With the use of pyvisa-py, should not have to install the National
 Instruments VISA driver.
