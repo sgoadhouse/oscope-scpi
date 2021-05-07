@@ -7,7 +7,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setuptools.setup(name="oscope_scpi", 
-                 version='0.1.10',
+                 version='0.1.11',
                  description='Control of Oscilloscopes with SCPI command sets like Keysight MSO-X/DSO-X 3000A, UXR, MXR and EXR Series through python via PyVisa',
                  long_description=long_description,
                  long_description_content_type="text/markdown",
@@ -36,7 +36,7 @@ setuptools.setup(name="oscope_scpi",
                      'pyvisa-py>=0.5.1',
                      'argparse',
                      'QuantiPhy>=2.3.0',
-                     'numpy>=1.20.0'
+                     'numpy>=1.19.0'
                  ],
                  python_requires='>=3.6',
                  packages=setuptools.find_packages(),
