@@ -103,6 +103,10 @@ class MSOX(DSOX):
         """
         super(MSOX, self).__init__(resource, maxChannel, wait)
 
+        # Since MSO-X have digital channels, add POD1 is for digital
+        # channels 0-7 or POD2 for digital channels 8-15
+        self._chanAllValidList += ['POD'+str(x) for x in range(1,3)]
+
         # Give the Series a name
         self._series = 'MSOX'
         

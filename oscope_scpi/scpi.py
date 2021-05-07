@@ -76,7 +76,8 @@ class SCPI(object):
         self._IDNmanu = ''      # store manufacturer from IDN here
         self._IDNmodel = ''     # store instrument model number from IDN here
         self._IDNserial = ''    # store instrument serial number from IDN here
-        self._version = 0.0     # set software versino to lowest value until it gets set
+        self._version = 0.0     # set software version to lowest value until it gets set
+        self._versionLegacy = 0.0   # set software version which triggers Legacy code to lowest value until it gets set
         self._inst = None
 
     def open(self):
@@ -228,7 +229,7 @@ class SCPI(object):
     # =========================================================
     def checkInstErrors(self, commandStr):
 
-        if (self._version > 2.60):
+        if (self._version > self._versionLegacy):
             cmd = "SYSTem:ERRor? STR"
             noerr = ("0,", 0, 2)
         else:
@@ -487,10 +488,10 @@ class SCPI(object):
         #    str = 'BLANK {}'.format(self.channelStr(chan))
         #    self._instWrite(str)
 
-        if (self._version > 2.60):
+        if (self._version > self._versionLegacy):
             self._instWrite("BLANk ALL")
         else:
-            # Turn off all channels (v2.60 take no parameter to blank all)
+            # Turn off all channels (Legacy f/w take no parameter to blank all)
             self._instWrite("BLANk")
         
         sleep(wait)             # give some time for PS to respond

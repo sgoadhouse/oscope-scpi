@@ -69,14 +69,26 @@ class Keysight(Oscilloscope):
 
         # list of ALL valid channel strings.
         #
-        # NOTE: Currently, only valid values are a CHAN+numerical string for
-        # the analog channels, POD1 for digital channels 0-7 or POD2 for
-        # digital channels 8-15
-        self._chanAllValidList = [self.channelStr(x) for x in range(1,self._max_chan+1)] + [str(x) for x in ['POD1','POD2']]
+        # NOTE: Currently, only valid common values are a
+        # CHAN+numerical string for the analog channels
+        self._chanAllValidList = [self.channelStr(x) for x in range(1,self._max_chan+1)]
 
         # Give the Series a name
         self._series = 'KEYSIGHT'
 
+        # Set the highest version number used to determine if SCPI
+        # firmware on oscilloscope expects the LEGACY commands. Any
+        # version number returned by the IDN string above this number
+        # will use the modern, non-legacy commands.
+        #
+        # Cannot find a definitive Keysight document that indicates
+        # the versions where non-legacy begins. The Legacy
+        # oscilloscopes like MSO-X 3034A are up to v2.65 now and it
+        # appears that somewhere around 3.00 is where the major change
+        # happened. So set _versionLegacy to 2.99 in hopes that this
+        # will serve for future oscilloscope firmware updates.
+        self._versionLegacy = 2.99
+        
         # This will store annotation text if that feature is used
         self._annotationText = ''
         self._annotationColor = 'ch1' # default to Channel 1 color
@@ -108,18 +120,18 @@ class Keysight(Oscilloscope):
 
             color - see annotateColor for possible strings
 
-            background - string, one of TRAN - transparent, OPAQue or INVerted (ignored unless sw version <= 2.60)
+            background - string, one of TRAN - transparent, OPAQue or INVerted (ignored unless sw version <= self._versionLegacy)
         """
 
         # Save annotation text because may need it if change color
         self._annotationText = text
 
-        # Next, if <= 2.60, set color first. if > 2.60,
+        # Next, if <= self._versionLegacy, set color first. if > self._versionLegacy,
         # annotateColor() also displays the annotation. Also handles
         # case of color is None.
         self.annotateColor(color)
         
-        if (self._version <= 2.60):
+        if (self._version <= self._versionLegacy):
             # Legacy commands for annotations
             #
             # Add an annotation to the screen
@@ -148,14 +160,14 @@ class Keysight(Oscilloscope):
     def annotateColor(self, color):
         """ Change screen annotation color """
 
-        ## NOTE: Only certain values are allowed. These are legacy names (<= 2.60)
+        ## NOTE: Only certain values are allowed. These are legacy names (<= self._versionLegacy)
         # {CH1 | CH2 | CH3 | CH4 | DIG | MATH | REF | MARK | WHIT | RED}
         #
         # The scope will respond with an error if an invalid color string is passed along
         #
-        # If > 2.60, will translate color names
+        # If > self._versionLegacy, will translate color names
         
-        if (self._version > 2.60):
+        if (self._version > self._versionLegacy):
             if (color is not None):
                 # save color
                 self._annotationColor = color
@@ -180,7 +192,7 @@ class Keysight(Oscilloscope):
     def annotateOff(self):
         """ Turn off screen annotation """
 
-        if (self._version > 2.60):
+        if (self._version > self._versionLegacy):
             self._instWrite("DISPlay:BOOKmark1:DELete")
         else:
             self._instWrite("DISPlay:ANN OFF")
@@ -253,7 +265,7 @@ class Keysight(Oscilloscope):
     def hardcopy(self, filename):
         """ Download the screen image to the given filename. """
 
-        if (self._version > 2.60):
+        if (self._version > self._versionLegacy):
             para = 'PNG,SCReen,ON,NORMal'
         else:
             self._instWrite("HARDcopy:INKSaver OFF")
@@ -290,9 +302,31 @@ class Keysight(Oscilloscope):
         # Get the waveform view.
         wav_view = self._instQuery("WAVeform:VIEW?")
         
-        # Choose the format of the data returned:
-        #@@@# Look into using WORD Format #@@@@@#
-        self._instWrite("WAVeform:FORMat BYTE")
+        # Choose the format of the data returned.
+        if (channel.startswith('HIST')):
+            # Histogram so request BINary forma
+            self._instWrite("WAVeform:FORMat BINary")
+        elif(channel == 'POD1' or channel == 'POD2'):
+            # For POD1 and POD2, they really are only BYTE values
+            # although WORD will work but the MSB will always be
+            # 0. Setting this to BYTE here makes later code work out
+            # by setting bits to 8 and npTyp to np.int8.
+            self._instWrite("WAVeform:FORMat BYTE")
+        else:
+            # For analog data, WORD is the best and has the highest
+            # accuracy (even better than FLOat). WORD works for most
+            # of the other channel types as well.
+            self._instWrite("WAVeform:FORMat WORD")
+        
+        # Make sure byte order is set to be compatible with endian-ness of system
+        if (sys.byteorder == 'big'):
+            bo = 'MSBFirst'
+        else:
+            bo = 'LSBFirst'
+            
+        self._instWrite("WAVeform:BYTeorder " + bo)
+
+        #@@@#print('Waveform Format: ' + self._instQuery('WAV:FORM?'))
         
         # Display the waveform settings from preamble:
         wav_form_dict = {
@@ -331,8 +365,32 @@ class Keysight(Oscilloscope):
             3 : "CONSTANT",
             4 : "AMP",
             5 : "DECIBEL",
+            6 : "HERTZ",
+            7 : "WATT",
         }
 
+        units_abbrev_dict = {
+            0 : "?",
+            1 : "V",
+            2 : "s",
+            3 : "CONST.",
+            4 : "A",
+            5 : "dB",
+            6 : "Hz",
+            7 : "W",
+        }
+
+        units_axis_dict = {
+            0 : "UNKNOWN",
+            1 : "Voltage",
+            2 : "Time",
+            3 : "CONSTANT",
+            4 : "Current",
+            5 : "Decibels",
+            6 : "Frequency",
+            7 : "Power",
+        }
+        
         preamble_string = self._instQuery("WAVeform:PREamble?")
         (wav_form, acq_type, wfmpts, avgcnt, x_increment, x_origin,
          x_reference, y_increment, y_origin, y_reference, coupling,
@@ -374,24 +432,35 @@ class Keysight(Oscilloscope):
         #
         acq_type    = int(acq_type)
         wav_form    = int(wav_form)
+        x_units     = int(x_units)
+        y_units     = int(y_units)
         x_increment = float(x_increment)
         x_origin    = float(x_origin)
+        x_reference = int(float(x_reference))
         y_increment = float(y_increment)
         y_origin    = float(y_origin)
+        y_reference = int(float(y_reference))
         x_display_range  = float(x_display_range)
         x_display_origin = float(x_display_origin)
 
         # Get the waveform data.
         pts = ''
+        start = 0
         if (points is not None):
-            # If want subset of points, grab them from the center of display
-            midpt = int((((x_display_range / 2) + x_display_origin) - x_origin) / x_increment)
-            start = midpt - (points // 2)
-            pts = ' {},{}'.format(start,points)
+            if (channel.startswith('HIST')):
+                print('   WARNING: Requesting Histogram data with Points. Ignore Points and returning all\n')
+            else:
+                # If want subset of points, grab them from the center of display
+                midpt = int((((x_display_range / 2) + x_display_origin) - x_origin) / x_increment)
+                start = midpt - (points // 2)
+                pts = ' {},{}'.format(start,points)
+                print('   As requested only downloading center {} points starting at {}\n'.format(points, ((x_reference + start) * x_increment) + x_origin))
             
         self._instWrite("WAVeform:STReaming OFF")
         sData = self._instQueryIEEEBlock("WAVeform:DATA?"+pts)
 
+        meta.append(("Waveform bytes downloaded","{}".format(len(sData))))
+        
         if (DEBUG):
             # Wait until after data transfer to output meta data so
             # that the preamble data is captured as close to the data
@@ -399,20 +468,67 @@ class Keysight(Oscilloscope):
             for mm in meta:
                 print("{:>27}: {}".format(mm[0],mm[1]))
             print()
+
+        # Set parameters based on returned Waveform Format
+        #
+        # NOTE: Ignoring ASCII format
+        if (wav_form == 1):
+            # BYTE
+            bits = 8
+            npTyp = np.int8
+            unpackStr = "@%db" % (len(sData)//(bits//8))
+        elif (wav_form == 2):
+            # WORD
+            bits = 16
+            npTyp = np.int16
+            unpackStr = "@%dh" % (len(sData)//(bits//8))
+        elif (wav_form == 3):
+            # LONG (unclear but believe this to be 32 bits)
+            bits = 32
+            npTyp = np.int32
+            unpackStr = "@%dl" % (len(sData)//(bits//8))
+        elif (wav_form == 4):
+            # LONGLONG
+            bits = 64
+            npTyp = np.int64
+            unpackStr = "@%dq" % (len(sData)//(bits//8))
+        elif (wav_form == 5):
+            # FLOAT (single-precision)
+            bits = 32
+            npTyp = np.float32
+            unpackStr = "@%df" % (len(sData)//(bits//8))
+        else:
+            raise RuntimeError('Unknown Waveform Format: ' + wav_form_dict[wav_form])
         
         # Unpack signed byte data.
-        values = np.array(struct.unpack("%db" % len(sData), sData), dtype=np.int8)
+        if (version_info < (3,)):
+            ## If PYTHON 2, sData will be a string and needs to be converted into a list of integers
+            #
+            # NOTE: not sure if this still works - besides PYTHON2 support is deprecated
+            values = np.array([ord(x) for x in sData], dtype=np.int8)
+        else:
+            ## If PYTHON 3, 
+            # Unpack signed data and store in proper type
+            #
+            # If the acquire type is HHIStogram or VHIStogram, the data is signed 64-bit integers
+            #if (acq_type == 3 or acq_type == 4):
+            #    unpackStr = "@%dq" % (len(sData)//8)
+            #    unpackTyp = np.int64
+            #else:
+            #    unpackStr = "@%dh" % (len(sData)//2)
+            #    unpackTyp = np.int16
+
+            values = np.array(struct.unpack(unpackStr, sData), dtype=npTyp)
+            
         nLength = len(values)
         meta.append(("Number of data values","{:d}".format(nLength)))
 
-        # If the acquire type is HHIStogram or VHIStogram, the x data
-        # needs to just be an incrementing count.
-        if (acq_type == 3 or acq_type == 4):
-            # create an array of an incrementing count for nLength
-            x = np.arange(nLength)
-        else:
-            # otherwise, time-base data so create an array of time values
-            x = (np.arange(nLength) * x_increment) + x_origin
+        # create an array of time (or voltage if histogram) values
+        #
+        # NOTE: Documentation currently say x_reference should
+        # always be 0 but still including it in equation in case
+        # that changes in the future
+        x = ((np.arange(nLength) - x_reference + start) * x_increment) + x_origin
 
         # If the acquire type is DIGITAL, the y data
         # does not need to be converted to an analog value
@@ -424,30 +540,41 @@ class Keysight(Oscilloscope):
 
             elif (channel.startswith('POD')):
                 # If the channel name starts with POD, then data needs
-                # to be split into bits
-                if (wav_form == 2):
-                    # wav_form of 2 is WORD, so 16 bits
-                    bits = 16
-                    typ = np.int16
-                else:
-                    # assume byte                
-                    bits = 8
-                    typ = np.int8
+                # to be split into bits. Note that different
+                # oscilloscope Series Class add PODx as valid channel
+                # names if they support digital channels. This
+                # prevents those without digital channels from ever
+                # passing in a channel name that starts with 'POD' so
+                # no need to also check here.
 
+                # Put number of POD into 'pod'
+                if (channel == 'PODALL'):
+                    # Default to 1 so the math works out to get all 16 digital channels
+                    pod = 1
+                else:
+                    # Grab number suffix to determine which bit to start with
+                    pod = int(channel[-1])
+                                
                 # So y will be a 2D array where y[0] is time array of bit 0, y[1] for bit 1, etc.
-                y = np.empty((bits, len(values)),typ)
+                y = np.empty((bits, len(values)),npTyp)
                 for ch in range(bits):
                     y[ch] = (values >> ch) & 1
 
-                # Put number of POD into 'pod'
-                pod = int(channel[-1])
                 header = ['Time (s)'] + ['D{}'.format((pod-1) * bits + ch) for ch in range(bits)]
                     
         else:
             # create an array of vertical data (typ. Voltages)
-            y = (values * y_increment) + y_origin
+            #
+            if (wav_form == 5):
+                # If Waveform Format is FLOAT, then conversion not needed
+                y = values
+            else:
+                # NOTE: Documentation currently say y_reference should
+                # always be 0 but still including it in equation in case
+                # that changes in the future                    
+                y = ((values - y_reference) * y_increment) + y_origin
 
-            header = ['Time (s)', 'Voltage (V)']
+            header = [f'{units_axis_dict[x_units]} ({units_abbrev_dict[x_units]})', f'{units_axis_dict[y_units]} ({units_abbrev_dict[y_units]})']
 
             
         # Return the data in numpy arrays along with the header & meta data
@@ -478,7 +605,7 @@ class Keysight(Oscilloscope):
         # Choose the format of the data returned:
         self._instWrite("WAVeform:FORMat BYTE")
 
-        # Set to Unsigned data which is compatible with PODx and BUSx channels
+        # Set to Unsigned data which is compatible with PODx
         self._instWrite("WAVeform:UNSigned ON")
 
         # Set the waveform points mode.
@@ -570,6 +697,8 @@ class Keysight(Oscilloscope):
         # Get the waveform data.
         sData = self._instQueryIEEEBlock("WAVeform:DATA?")
 
+        meta.append(("Waveform bytes downloaded","{}".format(len(sData))))
+        
         if (DEBUG):
             # Wait until after data transfer to output meta data so
             # that the preamble data is captured as close to the data
@@ -613,7 +742,7 @@ class Keysight(Oscilloscope):
                 typ = np.int8
 
             # So y will be a 2D array where y[0] is time array of bit 0, y[1] for bit 1, etc.
-            y = np.empty((bits, len(y)),typ)
+            y = np.empty((bits, len(values)),typ)
             for ch in range(bits):
                 y[ch] = (values >> ch) & 1
 
@@ -654,7 +783,7 @@ class Keysight(Oscilloscope):
             raise ValueError('INVALID Channel Value for WAVEFORM: {}  SKIPPING!'.format(self.channel))            
 
         
-        if (self._version > 2.60):
+        if (self._version > self._versionLegacy):
             (x, y, header, meta) = self._waveformDataNew(self.channel, points)
         else:
             (x, y, header, meta) = self._waveformDataLegacy(self.channel, points)        
@@ -889,7 +1018,7 @@ class Keysight(Oscilloscope):
             # If desire to install the measurement, make sure the
             # statistics display is on and then use the command form of
             # the measurement to install the measurement.
-            if (self._version > 2.60):
+            if (self._version > self._versionLegacy):
                 self._instWrite("MEASure:STATistics ON")
             else:
                 self._instWrite("MEASure:STATistics:DISPlay ON")
@@ -925,7 +1054,7 @@ class Keysight(Oscilloscope):
 
         """
 
-        if (self._version > 2.60):
+        if (self._version > self._versionLegacy):
             # NOTE: CDRRate requires "ANALyze:AEDGes ON". Not sure how that may impact other measurements
             # NOTE: CDRRate also requires the source to be in the command even though we set MEASURE:SOURCE
             self._instWrite("ANALyze:AEDGes ON")
@@ -951,7 +1080,7 @@ class Keysight(Oscilloscope):
         """
 
         
-        if (self._version > 2.60):
+        if (self._version > self._versionLegacy):
             # BWIDth changed - now it is burst width within waveform, not just Screen edges
             # must set an idle time - not sure what to set - setting 1 us for now
             if channel is None:
@@ -983,7 +1112,7 @@ class Keysight(Oscilloscope):
         # measurement will fail. Note doing the CLEAR, but if COUNTER
         # gets installed, this will fail until it gets manually CLEARed.
 
-        if (self._version > 2.60):
+        if (self._version > self._versionLegacy):
             # This measurement does not exist for newer sw versions
             return self.OverRange
         else:
@@ -1011,7 +1140,7 @@ class Keysight(Oscilloscope):
         install - if True, adds measurement to the statistics display
         """
 
-        if (self._version > 2.60):
+        if (self._version > self._versionLegacy):
             # Must specify if Positive (Rising Edge to Rising Edge)
             if channel is None:
                 # need channel as parameter so grab self.channel if channel is None
@@ -1114,7 +1243,7 @@ class Keysight(Oscilloscope):
         install - if True, adds measurement to the statistics display
         """
 
-        if (self._version > 2.60):
+        if (self._version > self._versionLegacy):
             # Must specify if Negative (Falling Edge to Falling Edge)
             if channel is None:
                 # need channel as parameter so grab self.channel if channel is None
@@ -1141,7 +1270,7 @@ class Keysight(Oscilloscope):
         install - if True, adds measurement to the statistics display
         """
 
-        if (self._version > 2.60):
+        if (self._version > self._versionLegacy):
             # This measurement does not exist for newer sw versions
             return self.OverRange
         else:
@@ -1285,7 +1414,7 @@ class Keysight(Oscilloscope):
         install - if True, adds measurement to the statistics display
         """
 
-        if (self._version > 2.60):
+        if (self._version > self._versionLegacy):
             # This measurement does not exist for newer sw versions
             return self.OverRange
         else:

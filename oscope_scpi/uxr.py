@@ -52,6 +52,24 @@ class UXR(Keysight):
         """
         super(UXR, self).__init__(resource, maxChannel, wait)
 
+        # Add Differential Channels
+        self._chanAllValidList += ['DIFF'+str(x) for x in range(1,self._max_chan+1)]
+        
+        # Add Common-Mode Channels
+        self._chanAllValidList += ['COMM'+str(x) for x in range(1,self._max_chan+1)]
+        
+        # Add Functions FUNCx (x is 1-16)
+        self._chanAllValidList += ['FUNC'+str(x) for x in range(1,17)]
+        
+        # Add HIST (Histogram) to list of ALL valid channel strings.
+        self._chanAllValidList += ['HIST']
+
+        # Add Wave Memory
+        self._chanAllValidList += ['WMEM'+str(x) for x in range(1,5)]
+        
+        # Add Wave Memory (document says this is 1-4 but my MXR scope has 8 memory slots)
+        self._chanAllValidList += ['WMEM'+str(x) for x in range(1,9)]
+        
         # Give the Series a name
         self._series = 'UXR'        
 
