@@ -7,8 +7,8 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setuptools.setup(name="oscope_scpi", 
-                 version='0.1.6',
-                 description='Control of Keysight MSO-X/DSO-X 3000A, UXR and MXR Oscilloscopes through python via PyVisa',
+                 version='0.1.9',
+                 description='Control of Oscilloscopes with SCPI command sets like Keysight MSO-X/DSO-X 3000A, UXR, MXR and EXR Series through python via PyVisa',
                  long_description=long_description,
                  long_description_content_type="text/markdown",
                  url='https://github.com/sgoadhouse/oscope-scpi',
@@ -18,7 +18,7 @@ setuptools.setup(name="oscope_scpi",
                  maintainer_email="sgoadhouse@virginia.edu",
                  license='MIT',
                  keywords=['HP', 'Agilent', 'Keysight', 'MSO3000', 'MSOX3000', 'DSO3000', 'DSOX3000',
-                           'MXR', 'MXR058A', 'UXR', 'UXR0334A', 'PyVISA', 'VISA', 'SCPI', 'INSTRUMENT'],
+                           'MXR', 'MXR058A', 'EXR', 'UXR', 'UXR0334A', 'PyVISA', 'VISA', 'SCPI', 'INSTRUMENT'],
                  classifiers=[
                      'Development Status :: 4 - Beta',
                      'Intended Audience :: Developers',
@@ -35,7 +35,8 @@ setuptools.setup(name="oscope_scpi",
                      'pyvisa>=1.11.3',
                      'pyvisa-py>=0.5.1',
                      'argparse',
-                     'QuantiPhy>=2.3.0'
+                     'QuantiPhy>=2.3.0',
+                     'numpy>=1.20.0'
                  ],
                  python_requires='>=3.6',
                  packages=setuptools.find_packages(),
