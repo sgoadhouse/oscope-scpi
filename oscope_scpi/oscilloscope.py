@@ -429,11 +429,12 @@ if __name__ == '__main__':
     # once and it becomes the default for all following calls)
     instr.channel = str(args.chan)
 
+    # Enable output of channel, if it is not already enabled
     if not instr.isOutputOn():
         instr.outputOn()
 
     # Install measurements to display in statistics display and also
-    # return their current values
+    # return their current values here
     print('Ch. {} Settings: {:6.4e} V  PW {:6.4e} s\n'.
               format(instr.channel, instr.measureVoltAverage(install=True),
                          instr.measurePosPulseWidth(install=True)))
@@ -441,16 +442,16 @@ if __name__ == '__main__':
     # Add an annotation to the screen before hardcopy
     instr.annotate("{}\\n{} {}".format('Example of Annotation','for Channel',instr.channel), 'ch1')
 
-    # Change label of the channel to "MySig"
-    instr.channelLabel("MySig".format(instr.channel))
+    # Change label of the channel to "MySigx"
+    instr.channelLabel("MySig{}".format(instr.channel))
 
-    # Make sure the statistics display is showing
+    # Make sure the statistics display is showing for the hardcopy
     instr.measureStatistics()
 
     # STOP Oscilloscope (not required for hardcopy - only showing example of how to do it)
     instr.modeStop()
     
-    ## Save a hardcopy of the screen
+    # Save a hardcopy of the screen to file 'outfile.png'
     instr.hardcopy('outfile.png')
 
     # SINGLE mode (just an example)
@@ -461,7 +462,7 @@ if __name__ == '__main__':
     # NOTE: can use instr.channelLabelOff() but showing an example of sending a SCPI command directly
     instr._instWrite('DISPlay:LABel OFF')
 
-    # RUN mode
+    # RUN mode (since demo Stop and Single, restore Run mode)
     instr.modeRun()
     
     # Turn off the annotation
@@ -508,10 +509,10 @@ if __name__ == '__main__':
             # to format the data with units and SI suffix.
             print('{: <24} {:>12.6}'.format(meas,instr.polish(instr.measureTblCall(meas), meas)))
 
-    ## turn off the channel
+    # turn off the channel
     instr.outputOff()
 
-    ## return to LOCAL mode
+    # return to LOCAL mode
     instr.setLocal()
 
     instr.close()
