@@ -36,7 +36,7 @@ setuptools.setup(name="oscope_scpi",
                      'pyvisa-py>=0.5.1',
                      'argparse',
                      'QuantiPhy>=2.3.0',
-                     'numpy>=1.19.0'
+                     'numpy==1.19.5'
                  ],
                  python_requires='>=3.6',
                  packages=setuptools.find_packages(),
