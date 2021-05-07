@@ -243,11 +243,11 @@ For information on what is possible for the HP/Agilent/Keysight MSO-X/DSO-X
 [Keysight InfiniiVision
 3000 X-Series Oscilloscopes Programming Guide](https://www.keysight.com/us/en/assets/9018-06894/programming-guides/9018-06894.pdf)
 
-For the Keysight MXR/EXR-Series Oscilloscopes, see [Keysight Infiniium MXR/EXR-Series Oscilloscopes Programmer's Guide]
-(https://www.keysight.com/us/en/assets/9018-18183/programming-guides/9018-18183.pdf)
+For the Keysight MXR/EXR-Series Oscilloscopes, see [Keysight Infiniium MXR/EXR-Series Oscilloscopes
+Programmer's Guide](https://www.keysight.com/us/en/assets/9018-18183/programming-guides/9018-18183.pdf)
 
-For the Keysight UXR-Series Oscilloscopes, see [Keysight Infiniium UXR-Series Oscilloscopes Programmer's Guide]
-(https://www.keysight.com/us/en/assets/9018-07723/programming-guides/9018-07723.pdf)
+For the Keysight UXR-Series Oscilloscopes, see [Keysight Infiniium UXR-Series Oscilloscopes
+Programmer's Guide](https://www.keysight.com/us/en/assets/9018-07723/programming-guides/9018-07723.pdf)
 
 For what is possible with general instruments that adhere to the
 IEEE 488 SCPI specification, like the MSO-X 3000A, see the
