@@ -52,8 +52,8 @@ class SCPI(object):
                      cmd_prefix = '',
                      read_strip = '',
                      read_termination = '',
-                     write_termination = '',
-                     timeout = 15000):
+                     write_termination = '\n',
+                     timeout = 5000):
         """Init the class with the instruments resource string
 
         resource   - resource string or VISA descriptor, like TCPIP0::172.16.2.13::INSTR
@@ -78,6 +78,7 @@ class SCPI(object):
         self._IDNserial = ''    # store instrument serial number from IDN here
         self._version = 0.0     # set software version to lowest value until it gets set
         self._versionLegacy = 0.0   # set software version which triggers Legacy code to lowest value until it gets set
+        self._legacyError = True    # Start off using Legacy Error method since both old and new instruments return something
         self._inst = None
 
     def open(self):
@@ -91,8 +92,18 @@ class SCPI(object):
         # Keysight recommends using clear()
         #
         # NOTE: must use pyvisa-py >= 0.5.0 to get this implementation
-        self._inst.clear()
-
+        # NOTE: pyvisa-py does not support clear() for USB so catch error
+        try:
+            self._inst.clear()
+        except visa.VisaIOError as err:
+            if (err.error_code == visa.constants.StatusCode.error_nonsupported_operation):
+                # If this resource does not support clear(), that is
+                # okay and it can be ignored.
+                pass
+            else:
+                # However, if this is a different error be sure to raise it.
+                raise
+                
         # Read ID to gather items like software version number so can
         # deviate operation based on changes to commands over history
         # (WHY did they make changes?)  MUST be done before below
@@ -124,9 +135,12 @@ class SCPI(object):
             result = self._inst.query(queryStr)
         except visa.VisaIOError as err:
             # Got VISA exception so read and report any errors
-            self.checkInstErrors(queryStr)
-            print("Exited because of VISA IO Error: {}".format(err))
-            exit(1)
+            if checkErrors:
+                self.checkInstErrors(queryStr)
+            #@@@#print("Exited because of VISA IO Error: {}".format(err))
+            #@@@#exit(1)
+            # raise same error so code calling this can use try/except to catch things
+            raise
             
         if checkErrors:
             self.checkInstErrors(queryStr)
@@ -138,14 +152,17 @@ class SCPI(object):
     def _instWrite(self, writeStr, checkErrors=True):
         if (writeStr[0] != '*'):
             writeStr = self._prefix + writeStr
-        #print("WRITE:",writeStr)
+        #@@@print("WRITE:",writeStr)
         try:
             result = self._inst.write(writeStr)
         except visa.VisaIOError as err:
             # Got VISA exception so read and report any errors
-            self.checkInstErrors(writeStr)
-            print("Exited because of VISA IO Error: {}".format(err))
-            exit(1)
+            if checkErrors:
+                self.checkInstErrors(writeStr)
+            #@@@#print("Exited because of VISA IO Error: {}".format(err))
+            #@@@#exit(1)
+            # raise same error so code calling this can use try/except to catch things
+            raise
 
         if checkErrors:
             self.checkInstErrors(writeStr)
@@ -229,33 +246,67 @@ class SCPI(object):
     # =========================================================
     def checkInstErrors(self, commandStr):
 
-        if (self._version > self._versionLegacy):
-            cmd = "SYSTem:ERRor? STR"
-            noerr = ("0,", 0, 2)
+        methodNew = ("SYSTem:ERRor? STRing", ("0,", 0, 2))
+        methodOld = ("SYSTem:ERRor?",        ("+0,", 0, 3))
+        if (not self._legacyError and self._version > self._versionLegacy):
+            cmd = methodNew[0]
+            noerr = methodNew[1]
         else:
-            cmd = "SYSTem:ERRor?"
-            noerr = ("+0,", 0, 3)
+            self._legacyError = True # indicate that using Legacy Error method
+            cmd = methodOld[0]
+            noerr = methodOld[1]
             
         errors = False
         # No need to read more times that the size of the Error Queue
         for reads in range(0,self.ErrorQueue):
-            # checkErrors=False prevents infinite recursion!
-            error_string = self._instQuery(cmd, checkErrors=False)
+            try:
+                # checkErrors=False prevents infinite recursion!
+                #@@@#print('Q: {}'.format(cmd))
+                error_string = self._instQuery(cmd, checkErrors=False)
+            except visa.errors.VisaIOError as err:    
+                if (err.error_code == visa.constants.StatusCode.error_timeout and cmd is methodNew[0]):
+                    ## Older instruments may not understand a
+                    ## parameter after the '?' and will not respond
+                    ## resulting in a timeout. So, if trying the 'New'
+                    ## command and get a timeout, assume this is
+                    ## happening and try query again but modified for
+                    ## the Legacy way.
+                    ##
+                    ## NOTE: Since loop goes no further than
+                    ## self.ErrorQueue, will have 1 less possible loop
+                    ## but that is okay.
+                    cmd = methodOld[0]
+                    noerr = methodOld[1]
+                    # Also, set _legacyError to True to make
+                    # code use methodOld in subsequent calls
+                    self._legacyError = True # indicate that using Legacy Error method
+                    continue
+                else:
+                    print("Unexpected VisaIOError during checkInstErrors(): {}".format(err))
+                    errors = True # if unexpected response, then set as Error
+                    break
+                    
             error_string = error_string.strip()  # remove trailing and leading whitespace
             if error_string: # If there is an error string value.
                 if error_string.find(*noerr) == -1:
                     # Not "No error".
+                    #
+                    # First check if using Legacy Error command just
+                    # got an error code. If so, this is really a newer
+                    # instrument and so retry using New command format
+                    if (self._legacyError and error_string.isdigit()):
+                        cmd = methodNew[0]
+                        noerr = methodNew[1]
+                        self._legacyError = False # indicate that using New Error method
+                        continue
+                        
                     print("ERROR({:02d}): {}, command: '{}'".format(reads, error_string, commandStr))
-                    #print "Exited because of error."
-                    #sys.exit(1)
                     errors = True           # indicate there was an error
                 else: # "No error"
                     break
 
             else: # :SYSTem:ERRor? should always return string.
                 print("ERROR: :SYSTem:ERRor? returned nothing, command: '{}'".format(commandStr))
-                #print "Exited because of error."
-                #sys.exit(1)
                 errors = True # if unexpected response, then set as Error
                 break
 
@@ -265,7 +316,7 @@ class SCPI(object):
     # Based on do_query_ieee_block() from the MSO-X 3000 Programming
     # Guide and modified to work within this class ...
     # =========================================================
-    def _instQueryIEEEBlock(self, queryStr):
+    def _instQueryIEEEBlock(self, queryStr, checkErrors=True):
         if (queryStr[0] != '*'):
             queryStr = self._prefix + queryStr
         #print("QUERYIEEEBlock:",queryStr)
@@ -273,18 +324,20 @@ class SCPI(object):
             result = self._inst.query_binary_values(queryStr, datatype='s', container=bytes)
         except visa.VisaIOError as err:
             # Got VISA exception so read and report any errors
-            self.checkInstErrors(queryStr)
+            if checkErrors:
+                self.checkInstErrors(queryStr)
             print("Exited because of VISA IO Error: {}".format(err))
             exit(1)
             
-        self.checkInstErrors(queryStr)
+        if checkErrors:
+            self.checkInstErrors(queryStr)
         return result
 
     # =========================================================
     # Based on code from the MSO-X 3000 Programming
     # Guide and modified to work within this class ...
     # =========================================================
-    def _instQueryNumbers(self, queryStr):
+    def _instQueryNumbers(self, queryStr, checkErrors=True):
         if (queryStr[0] != '*'):
             queryStr = self._prefix + queryStr
         #print("QUERYNumbers:",queryStr)
@@ -292,18 +345,20 @@ class SCPI(object):
             result = self._inst.query_ascii_values(queryStr, converter='f', separator=',')
         except visa.VisaIOError as err:
             # Got VISA exception so read and report any errors
-            self.checkInstErrors(queryStr)
+            if checkErrors:
+                self.checkInstErrors(queryStr)
             print("Exited because of VISA IO Error: {}".format(err))
             exit(1)
             
-        self.checkInstErrors(queryStr)
+        if checkErrors:
+            self.checkInstErrors(queryStr)
         return result
 
     # =========================================================
     # Based on do_command_ieee_block() from the MSO-X 3000 Programming
     # Guide and modified to work within this class ...
     # =========================================================
-    def _instWriteIEEEBlock(self, writeStr, values):
+    def _instWriteIEEEBlock(self, writeStr, values, checkErrors=True):
         if (writeStr[0] != '*'):
             writeStr = self._prefix + writeStr
         #print("WRITE:",writeStr)
@@ -319,14 +374,16 @@ class SCPI(object):
             result = self._inst.write_binary_values(writeStr, values, datatype=datatype)
         except visa.VisaIOError as err:
             # Got VISA exception so read and report any errors
-            self.checkInstErrors(writeStr)
+            if checkErrors:
+                self.checkInstErrors(writeStr)
             print("Exited because of VISA IO Error: {}".format(err))
             exit(1)
 
-        self.checkInstErrors(writeStr)
+        if checkErrors:
+            self.checkInstErrors(writeStr)
         return result
 
-    def _instWriteIEEENumbers(self, writeStr, values):
+    def _instWriteIEEENumbers(self, writeStr, values, checkErrors=True):
         if (writeStr[0] != '*'):
             writeStr = self._prefix + writeStr
         #print("WRITE:",writeStr)
@@ -335,11 +392,13 @@ class SCPI(object):
             result = self._inst.write_binary_values(writeStr, values, datatype='f')
         except visa.VisaIOError as err:
             # Got VISA exception so read and report any errors
-            self.checkInstErrors(writeStr)
+            if checkErrors:
+                self.checkInstErrors(writeStr)
             print("Exited because of VISA IO Error: {}".format(err))
             exit(1)
 
-        self.checkInstErrors(writeStr)
+        if checkErrors:
+            self.checkInstErrors(writeStr)
         return result
 
     def _getID(self):
