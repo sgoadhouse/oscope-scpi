@@ -173,4 +173,73 @@ class MSOX3xx4A(MSOX):
         
         # Give the Series a name
         self._series = 'MSOX3'
+
+#######################################################################
+# Not completely sure how compatible the T suffix is with the A suffix
+# but assume that the commands we are using are compatible and use the
+# same series name.
+#######################################################################
+class DSOX3xx2T(DSOX):
+    """Basic class for controlling and accessing a HP/Agilent/Keysight DSO-X 3xx2T 2-Channel Oscilloscope"""
+
+    maxChannel = 2
+
+    def __init__(self, resource, wait=0):
+        """Init the class with the instruments resource string
+
+        resource   - resource string or VISA descriptor, like TCPIP0::172.16.2.13::INSTR
+        wait       - float that gives the default number of seconds to wait after sending each command
+        """
+        super(DSOX3xx2T, self).__init__(resource, maxChannel=DSOX3xx2T.maxChannel, wait=wait)
+
+        # Give the Series a name
+        self._series = 'DSOX3'
+        
+class MSOX3xx2T(MSOX):
+    """Basic class for controlling and accessing a HP/Agilent/Keysight MSO-X 3xx2T 2-Channel Oscilloscope"""
+
+    maxChannel = 2
+
+    def __init__(self, resource, wait=0):
+        """Init the class with the instruments resource string
+
+        resource   - resource string or VISA descriptor, like TCPIP0::172.16.2.13::INSTR
+        wait       - float that gives the default number of seconds to wait after sending each command
+        """
+        super(MSOX3xx2T, self).__init__(resource, maxChannel=MSOX3xx2T.maxChannel, wait=wait)
+
+        # Give the Series a name
+        self._series = 'MSOX3'
+
+class DSOX3xx4T(DSOX):
+    """Basic class for controlling and accessing a HP/Agilent/Keysight DSO-X 3xx4T 4-Channel Oscilloscope"""
+
+    maxChannel = 4
+
+    def __init__(self, resource, wait=0):
+        """Init the class with the instruments resource string
+
+        resource   - resource string or VISA descriptor, like TCPIP0::172.16.2.13::INSTR
+        wait       - float that gives the default number of seconds to wait after sending each command
+        """
+        super(DSOX3xx4T, self).__init__(resource, maxChannel=DSOX3xx4T.maxChannel, wait=wait)
+
+        # Give the Series a name
+        self._series = 'DSOX3'
+        
+class MSOX3xx4T(MSOX):
+    """Basic class for controlling and accessing a HP/Agilent/Keysight MSO-X 3xx4T 4-Channel Oscilloscope"""
+
+    maxChannel = 4
+
+    def __init__(self, resource, wait=0):
+        """Init the class with the instruments resource string
+
+        resource   - resource string or VISA descriptor, like TCPIP0::172.16.2.13::INSTR
+        wait       - float that gives the default number of seconds to wait after sending each command
+        """
+        super(MSOX3xx4T, self).__init__(resource, maxChannel=MSOX3xx4T.maxChannel, wait=wait)
+        
+        # Give the Series a name
+        self._series = 'MSOX3'
     

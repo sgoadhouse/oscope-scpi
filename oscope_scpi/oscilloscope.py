@@ -174,10 +174,10 @@ class Oscilloscope(SCPI):
                     newobj = UXR(self._resource, wait=self._wait)
             elif (self._IDNmodel.upper().startswith('DSO-X')):
                 try:
-                    from .dso import DSOX, DSOX3xx4A, DSOX3xx2A
+                    from .dso import DSOX, DSOX3xx4A, DSOX3xx2A, DSOX3xx4T, DSOX3xx2T
                 except Exception:
                     sys.path.append(os.getcwd())
-                    from dso import DSOX, DSOX3xx4A, DSOX3xx2A
+                    from dso import DSOX, DSOX3xx4A, DSOX3xx2A, DSOX3xx4T, DSOX3xx2T
     
                 # One of the DSOX Oscilloscopes 
                 if (self._IDNmodel.upper().startswith('DSO-X 3') and
@@ -188,15 +188,23 @@ class Oscilloscope(SCPI):
                       self._IDNmodel.upper().endswith('2A')):
                     # 2 channel DSOX3xxx model
                     newobj = DSOX3xx2A(self._resource, wait=self._wait)
+                elif (self._IDNmodel.upper().startswith('DSO-X 3') and
+                    self._IDNmodel.upper().endswith('4T')):
+                    # 4 channel DSOX3xxx model but newer T suffix
+                    newobj = DSOX3xx4T(self._resource, wait=self._wait)
+                elif (self._IDNmodel.upper().startswith('DSO-X 3') and
+                      self._IDNmodel.upper().endswith('2T')):
+                    # 2 channel DSOX3xxx model but newer T suffix
+                    newobj = DSOX3xx2T(self._resource, wait=self._wait)
                 else:
                     # Generic DSOX
                     newobj = DSOX(self._resource, wait=self._wait)
             elif (self._IDNmodel.upper().startswith('MSO-X')):
                 try:
-                    from .dso import MSOX, MSOX3xx4A, MSOX3xx2A
+                    from .dso import MSOX, MSOX3xx4A, MSOX3xx2A, MSOX3xx4T, MSOX3xx2T
                 except Exception:
                     sys.path.append(os.getcwd())
-                    from dso import MSOX, MSOX3xx4A, MSOX3xx2A
+                    from dso import MSOX, MSOX3xx4A, MSOX3xx2A, MSOX3xx4T, MSOX3xx2T
     
                 # One of the MSOX Oscilloscopes 
                 if (self._IDNmodel.upper().startswith('MSO-X 3') and
@@ -207,6 +215,14 @@ class Oscilloscope(SCPI):
                       self._IDNmodel.upper().endswith('2A')):
                     # 2 channel MSOX3xxx model
                     newobj = MSOX3xx2A(self._resource, wait=self._wait)
+                elif (self._IDNmodel.upper().startswith('MSO-X 3') and
+                    self._IDNmodel.upper().endswith('4T')):
+                    # 4 channel MSOX3xxx model but newer T suffix
+                    newobj = MSOX3xx4T(self._resource, wait=self._wait)
+                elif (self._IDNmodel.upper().startswith('MSO-X 3') and
+                      self._IDNmodel.upper().endswith('2T')):
+                    # 2 channel MSOX3xxx model but newer T suffix
+                    newobj = MSOX3xx2T(self._resource, wait=self._wait)
                 else:
                     # Generic MSOX
                     newobj = MSOX(self._resource, wait=self._wait)
