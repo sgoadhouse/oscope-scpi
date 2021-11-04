@@ -243,6 +243,11 @@ For information on what is possible for the HP/Agilent/Keysight MSO-X/DSO-X
 [Keysight InfiniiVision
 3000 X-Series Oscilloscopes Programming Guide](https://www.keysight.com/us/en/assets/9018-06894/programming-guides/9018-06894.pdf)
 
+For information on what is possible for the HP/Agilent/Keysight MSO-X/DSO-X
+3000T, see the
+[Keysight InfiniiVision
+3000T X-Series Oscilloscopes Programming Guide](https://www.keysight.com/us/en/assets/9018-07265/programming-guides/9018-07265.pdf)
+
 For the Keysight MXR/EXR-Series Oscilloscopes, see [Keysight Infiniium MXR/EXR-Series Oscilloscopes
 Programmer's Guide](https://www.keysight.com/us/en/assets/9018-18183/programming-guides/9018-18183.pdf)
 
