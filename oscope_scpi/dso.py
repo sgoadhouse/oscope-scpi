@@ -174,6 +174,7 @@ class MSOX3xx4A(MSOX):
         # Give the Series a name
         self._series = 'MSOX3'
 
+                
 #######################################################################
 # Not completely sure how compatible the T suffix is with the A suffix
 # but assume that the commands we are using are compatible and use the
@@ -194,6 +195,11 @@ class DSOX3xx2T(DSOX):
 
         # Give the Series a name
         self._series = 'DSOX3'
+
+        # This appears to use Legacy commands although it has a rather
+        # high firmware version number, so set _versionLegacy high
+        # enough
+        self._versionLegacy = 9.999
         
 class MSOX3xx2T(MSOX):
     """Basic class for controlling and accessing a HP/Agilent/Keysight MSO-X 3xx2T 2-Channel Oscilloscope"""
@@ -211,6 +217,11 @@ class MSOX3xx2T(MSOX):
         # Give the Series a name
         self._series = 'MSOX3'
 
+        # This appears to use Legacy commands although it has a rather
+        # high firmware version number, so set _versionLegacy high
+        # enough
+        self._versionLegacy = 9.999
+        
 class DSOX3xx4T(DSOX):
     """Basic class for controlling and accessing a HP/Agilent/Keysight DSO-X 3xx4T 4-Channel Oscilloscope"""
 
@@ -226,6 +237,11 @@ class DSOX3xx4T(DSOX):
 
         # Give the Series a name
         self._series = 'DSOX3'
+        
+        # This appears to use Legacy commands although it has a rather
+        # high firmware version number, so set _versionLegacy high
+        # enough
+        self._versionLegacy = 9.999
         
 class MSOX3xx4T(MSOX):
     """Basic class for controlling and accessing a HP/Agilent/Keysight MSO-X 3xx4T 4-Channel Oscilloscope"""
@@ -243,3 +259,8 @@ class MSOX3xx4T(MSOX):
         # Give the Series a name
         self._series = 'MSOX3'
     
+        # This appears to use Legacy commands although it has a rather
+        # high firmware version number, so set _versionLegacy high
+        # enough
+        self._versionLegacy = 9.999
+        
