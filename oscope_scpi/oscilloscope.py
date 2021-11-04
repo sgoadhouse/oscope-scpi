@@ -499,7 +499,7 @@ if __name__ == '__main__':
                     'RMS - Full Screen',
                     ]
     for meas in measurements:
-        if (meas is ''):
+        if (meas == ''):
             # use a blank string to put in an extra line
             print()
         else:
