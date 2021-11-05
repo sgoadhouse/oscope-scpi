@@ -194,7 +194,7 @@ class DSOX3xx2T(DSOX):
         super(DSOX3xx2T, self).__init__(resource, maxChannel=DSOX3xx2T.maxChannel, wait=wait)
 
         # Give the Series a name
-        self._series = 'DSOX3'
+        self._series = 'DSOX3T'
 
         # This appears to use Legacy commands although it has a rather
         # high firmware version number, so set _versionLegacy high
@@ -215,7 +215,7 @@ class MSOX3xx2T(MSOX):
         super(MSOX3xx2T, self).__init__(resource, maxChannel=MSOX3xx2T.maxChannel, wait=wait)
 
         # Give the Series a name
-        self._series = 'MSOX3'
+        self._series = 'MSOX3T'
 
         # This appears to use Legacy commands although it has a rather
         # high firmware version number, so set _versionLegacy high
@@ -236,7 +236,7 @@ class DSOX3xx4T(DSOX):
         super(DSOX3xx4T, self).__init__(resource, maxChannel=DSOX3xx4T.maxChannel, wait=wait)
 
         # Give the Series a name
-        self._series = 'DSOX3'
+        self._series = 'DSOX3T'
         
         # This appears to use Legacy commands although it has a rather
         # high firmware version number, so set _versionLegacy high
@@ -257,7 +257,7 @@ class MSOX3xx4T(MSOX):
         super(MSOX3xx4T, self).__init__(resource, maxChannel=MSOX3xx4T.maxChannel, wait=wait)
         
         # Give the Series a name
-        self._series = 'MSOX3'
+        self._series = 'MSOX3T'
     
         # This appears to use Legacy commands although it has a rather
         # high firmware version number, so set _versionLegacy high

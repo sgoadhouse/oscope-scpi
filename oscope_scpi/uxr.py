@@ -105,12 +105,6 @@ class UXR(Keysight):
         # return the result in an array of dictionaries
         return stats
     
-    def measureDVMfreq(self, channel=None, timeout=3, wait=0.5):
-        """ This is not a defined MODE for UXR series, so return string saying so
-        """
-
-        return Keysight.OverRange
-
     def setupAutoscale(self, channel=None):
         """ Autoscale desired channel, which is a string. channel can also be a list of multiple strings"""
 

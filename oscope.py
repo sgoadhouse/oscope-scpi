@@ -183,8 +183,12 @@ def main():
                 acrms = scope.measureDVMacrms(chan)
                 dc = scope.measureDVMdc(chan)
                 dcrms = scope.measureDVMdcrms(chan)
-                freq = scope.measureDVMfreq(chan)
-
+                if (scope.series == "MSOX3" or scope.series == "DSOX3"):
+                    # These series are the only ones know to support DVM:FREQ? command
+                    freq = scope.measureDVMfreq(chan)
+                else:
+                    freq = scope.OverRange
+                    
                 if (acrms >= scope.OverRange):
                     acrms = 'INVALID '
                 if (dc >= scope.OverRange):
@@ -197,7 +201,9 @@ def main():
                 print("Ch.{}: {: 7.5f}V ACRMS".format(chan,acrms))
                 print("Ch.{}: {: 7.5f}V DC".format(chan,dc))
                 print("Ch.{}: {: 7.5f}V DCRMS".format(chan,dcrms))
-                print("Ch.{}: {}Hz FREQ".format(chan,freq))
+                if (scope.series == "MSOX3" or scope.series == "DSOX3"):
+                    # These series are the only ones know to support DVM:FREQ? command
+                    print("Ch.{}: {}Hz FREQ".format(chan,freq))
 
                 # Turn off DVM mode if it was off to begin with
                 if (not dvmEnabledAtStart):

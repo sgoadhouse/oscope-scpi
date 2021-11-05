@@ -821,6 +821,10 @@ class Keysight(Oscilloscope):
         if (self.series == 'KEYSIGHT' or self.series == 'UXR'):
             # Generic Keysight and UXR do not support DVM
             raise RuntimeError(f"This machine appears to be of the {self.series} series which does not support DVM")
+
+        if (mode == 'FREQ' and self.series != "MSOX3" and self.series != "DSOX3"):
+            # This device does not support DVM:FREQ? so simply return an invalid, overrange number
+            return self.OverRange
         
         # If a channel value is passed in, make it the
         # current channel
