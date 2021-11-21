@@ -416,6 +416,7 @@ class SCPI(object):
             self._version = float(ver[0]+'.'+ver[1])
         except:
             # In case version is not purely numeric
+            ver[-1] = ver[-1].replace('\n', '')
             self._version = tuple(ver)
             self._versionLegacy = tuple()
         
