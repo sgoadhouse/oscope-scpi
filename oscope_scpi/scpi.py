@@ -411,8 +411,13 @@ class SCPI(object):
         self._IDNserial = idn[2] # store instrument serial number from IDN here
 
         ver = idn[3].split('.')
-        # put major and minor version into floating point format so can numerically compare
-        self._version = float(ver[0]+'.'+ver[1])
+        try:
+            # put major and minor version into floating point format so can numerically compare
+            self._version = float(ver[0]+'.'+ver[1])
+        except:
+            # In case version is not purely numeric
+            self._version = tuple(ver)
+            self._versionLegacy = tuple()
         
     def idn(self):
         """Return response to *IDN? message"""
