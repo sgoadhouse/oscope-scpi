@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Copyright (c) 2018,2019,2020,2021, Stephen Goadhouse <sgoadhouse@virginia.edu>
+# Copyright (c) 2018,2019,2020,2021,2022 Stephen Goadhouse <sgoadhouse@virginia.edu>
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -98,7 +98,7 @@ def parse(scope):
     parser = argparse.ArgumentParser(description='Access Agilent/KeySight MSO3034A scope')
     parser.add_argument('--hardcopy', '-y', metavar='outfile.png', help='grab hardcopy of scope screen and output to named file as a PNG image')
     parser.add_argument('--waveform', '-w', nargs=2, metavar=('channel', 'outfile.npz'), action='append',
-                        help='grab waveform data of channel ('+ str(scope.chanAllValidList).strip('[]') + ') and output to named file as a Numpy NPZ file (see oscopeplot.py)')
+                        help='grab waveform data of channel ('+ str(scope.chanAllValidList).strip('[]') + ') and output to named file as a Numpy NPZ file (see oscopeplot.py or oscopecsv.py)')
     parser.add_argument('--setup_save', '-s', metavar='outfile.stp', help='save the current setup of the oscilloscope into the named file')
     parser.add_argument('--setup_load', '-l', metavar='infile.stp', help='load the current setup of the oscilloscope from the named file')
     parser.add_argument('--statistics', '-t', action='store_true', help='dump to the output the current displayed measurements')
