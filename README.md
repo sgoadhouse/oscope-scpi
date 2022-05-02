@@ -64,7 +64,7 @@ pip install oscope_scpi
 * [python](http://www.python.org/)
    * pyvisa no longer supports python 2.7+ so neither does this package - use older version of [MSOX3000](https://github.com/sgoadhouse/msox3000) if need python 2.7+
 * [pyvisa 1.11.3](https://pyvisa.readthedocs.io/en/stable/)
-* [pyvisa-py 0.5.1](https://pyvisa-py.readthedocs.io/en/latest/) 
+* [pyvisa-py 0.5.2](https://pyvisa-py.readthedocs.io/en/latest/) 
 * [quantiphy 2.3.0](http://quantiphy.readthedocs.io/en/stable/) 
 
 In order to run the example scripts `oscope.py` and `oscopeplot.py`, will also need to manually install:
