@@ -60,7 +60,10 @@ pip install oscope_scpi
 
 ## Requirements
 * [argparse](https://docs.python.org/3/library/argparse.html) 
-* [numpy 1.19.5](https://numpy.org/) 
+* [numpy 1.19.5](https://numpy.org/)
+   * if installing on python 3.6 or 3.7, numpy 1.19.5 will be installed
+   * if installing on python 3.8+, then the latest numpy will be installed
+      * Up to numpy 1.22.3 has been verified
 * [python](http://www.python.org/)
    * pyvisa no longer supports python 2.7+ so neither does this package - use older version of [MSOX3000](https://github.com/sgoadhouse/msox3000) if need python 2.7+
 * [pyvisa 1.11.3](https://pyvisa.readthedocs.io/en/stable/)
