@@ -50,12 +50,19 @@ import argparse
 
 from datetime import datetime
 
-# matplotlib.pyplot is needed for plotting waveform data to screen
-# (very convenient). If do not want to install this very useful Python
-# package, then remove this import and search for 'plt.' below and
-# remove the plotting code.
-import matplotlib.pyplot as plt
-
+PLOT = True
+if (PLOT):
+    try:
+        import matplotlib.pyplot as plt
+    except:
+        print('matplotlib.pyplot is needed for plotting waveform data to screen')
+        print('(very convenient). Please install it with "pip install matplotlib".\n')
+        print('If you do not want to install this very useful Python')
+        print('package, then change line "PLOT = True" to "PLOT = False" in')
+        print('the file "oscope.py"')
+        sys.exit(-1)
+    
+    
 from oscope_scpi import Oscilloscope
 
 def handleFilename(fname, ext, unique=True, timestamp=True):
@@ -266,7 +273,7 @@ def main():
                                 'RMS - Full Screen',
                 ]
                 for meas in measurements:
-                    if (meas is ''):
+                    if (meas == ''):
                         # use a blank string to put in an extra line
                         print()
                     else:
@@ -323,7 +330,7 @@ def main():
 
                     # Plot received data to screen so user can see what they got before saving the file.
                     # However, if the lengths do not match, cannot plot. This can happen if channel is PODx and data are bits.
-                    if (len(x) == len(y)):
+                    if (PLOT and (len(x) == len(y))):
                         print("Close the plot window to continue...")
                         fig, (ax1, ax2) = plt.subplots(1, 2)
                         ax1.plot(x, y)      # plot the data
