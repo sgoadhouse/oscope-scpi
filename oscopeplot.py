@@ -34,9 +34,15 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import matplotlib.pyplot as plt
 import numpy as np
 import sys
+
+try:
+    import matplotlib.pyplot as plt
+except:
+    print('matplotlib.pyplot is needed for plotting waveform data to screen')
+    print('Please install it with "pip install matplotlib".\n')
+    sys.exit(-1)
 
 filename = sys.argv[1]
 
