@@ -332,12 +332,12 @@ class Oscilloscope(SCPI):
         
         # Save waveform data values to CSV file.
         # Determine iterator
-        if (nLength == len(y)):
+        if (isinstance(y[0],list)):
+            # Multiple columns in y, so break them out
+            it = [[a,*b] for (a,b) in zip(x,y)]
+        else:
             # Simply single column of y data
             it = zip(x,y)
-        else:
-            # Multiple columns in y, so break them out
-            it = zip(x,*y)
             
         # Open file for output. Only output x & y for simplicity. User
         # will have to copy paste the meta data printed to the
