@@ -93,6 +93,14 @@ class Keysight(Oscilloscope):
         self._annotationText = ''
         self._annotationColor = 'ch1' # default to Channel 1 color
 
+    def measureStatistics(self):
+        """Returns data from the current statistics window.
+        """
+        # Provide the function definition in case a child class doesn't
+
+        statFlat = self._measureStatistics()
+        return statFlat
+
 
     def modeRun(self):
         """ Set Oscilloscope to RUN Mode """
