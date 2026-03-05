@@ -264,3 +264,54 @@ class MSOX3xx4T(MSOX):
         # enough
         self._versionLegacy = 9.999
         
+class DSO(Keysight):
+    """Basic class for controlling and accessing a HP/Agilent/Keysight Generic DSO### Oscilloscope"""
+
+    def __init__(self, resource, model,wait=0):
+        """Init the class with the instrument's resource string
+
+        resource   - resource string or VISA descriptor, like TCPIP0::172.16.2.13::INSTR
+        maxChannel - number of channels of this oscilloscope
+        wait       - float that gives the default number of seconds to wait after sending each command
+        """
+        channels = int(model[-2]) # model number format: DSO####A, last number is channels (suffix letter is revision)
+        super(DSO, self).__init__(resource, maxChannel=channels, wait=wait)
+
+        # Give the Series a name
+        self._series = 'DSO'        
+        
+    def measureStatistics(self):
+        """Returns an array of dictionaries from the current statistics window.
+
+        The definition of the returned dictionary can be easily gleaned
+        from the code below.
+        """
+
+        # turn on the statistics display - these are specific to MSOX/DSOX
+        # self._instWrite("SYSTem:MENU MEASure")
+        self._instWrite("MEASure:STATistics ON")
+
+        statFlat = super(DSO, self)._measureStatistics()
+        
+        # convert the flat list into a two-dimentional matrix with seven columns per row
+        cols = 7
+        if ((len(statFlat) % cols != 0)):
+            print('Unexpected response. Oscilloscope may not have any measurements enabled.')
+            statMat = []
+        else:
+            statMat = [statFlat[i:i+cols] for i in range(0,len(statFlat),cols)]
+        
+        # convert each row into a dictionary, while converting text strings into numbers
+        stats = []
+        for stat in statMat:            
+            stats.append({'label':stat[0],
+                          'CURR':float(stat[1]),   # Current Value
+                          'MIN':float(stat[2]),    # Minimum Value
+                          'MAX':float(stat[3]),    # Maximum Value
+                          'MEAN':float(stat[4]),   # Average/Mean Value
+                          'STDD':float(stat[5]),   # Standard Deviation
+                          'COUN':float(stat[6])    # Count of measurements
+                          })
+
+        # return the result in an array of dictionaries
+        return stats
