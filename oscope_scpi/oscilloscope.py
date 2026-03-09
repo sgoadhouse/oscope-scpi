@@ -38,6 +38,7 @@ from __future__ import print_function
 
 import sys
 import os
+import re
 
 try:
     from .scpi import SCPI
@@ -226,6 +227,14 @@ class Oscilloscope(SCPI):
                 else:
                     # Generic MSOX
                     newobj = MSOX(self._resource, wait=self._wait)
+            elif re.search('^DSO\d+[A-Z]$',self._IDNmodel.upper()) is not None: # Older DSO models, such as DSO90804A, DSO6054A, DSO7014B
+                try:
+                    from .dso import DSO
+                except Exception:
+                    sys.path.append(os.getcwd())
+                    from dso import DSO
+
+                newobj = DSO(self._resource, model=self._IDNmodel,wait=self._wait)
             else:
                 try:
                     from .keysight import Keysight
